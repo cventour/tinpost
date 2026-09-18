@@ -1,0 +1,71 @@
+<%- include('partials/head', { title: (m.subject || '(no subject)') + ' — MailButler', addr }) %>
+
+<section class="panel message">
+  <div class="msg-head">
+    <a class="back" href="/mail?folder=<%= folder %>">&larr; <%= folder === 'sent' ? 'Sent' : 'Inbox' %></a>
+    <div class="msg-actions">
+      <a class="btn small" href="/compose?reply=<%= m.id %>">Reply</a>
+      <a class="btn small" href="/compose?reply=<%= m.id %>&amp;all=1">Reply all</a>
+      <a class="btn small ghost" href="/mail/<%= m.id %>/raw?download=1">Download .eml</a>
+    </div>
+  </div>
+
+  <h1 class="subject"><%= m.subject || '(no subject)' %></h1>
+
+  <dl class="headers">
+    <dt>From</dt><dd><%= m.from_name ? m.from_name + ' <' + m.from_addr + '>' : m.from_addr %></dd>
+    <dt>To</dt><dd><%= recipients.filter(function(r){return r.kind==='to'}).map(function(r){return r.address}).join(', ') || '(undisclosed)' %></dd>
+    <% const ccs = recipients.filter(function(r){return r.kind==='cc'}) %>
+    <% if (ccs.length) { %><dt>Cc</dt><dd><%= ccs.map(function(r){return r.address}).join(', ') %></dd><% } %>
+    <% const bccs = recipients.filter(function(r){return r.kind==='bcc'}) %>
+    <% if (bccs.length) { %><dt>Bcc</dt><dd class="dim"><%= bccs.map(function(r){return r.address}).join(', ') %> <span class="tag">envelope only</span></dd><% } %>
+    <dt>Date</dt><dd><%= new Date(m.date_utc).toLocaleString() %></dd>
+    <dt>Size</dt><dd><%= fmtBytes(m.size_bytes) %> <span class="tag"><%= m.origin === 'webmail' ? 'sent from webmail' : 'received over SMTP' %></span></dd>
+  </dl>
+
+  <% if (attachments.length) { %>
+    <div class="attachments">
+      <h2><%= attachments.length %> attachment<%= attachments.length > 1 ? 's' : '' %></h2>
+      <ul>
+        <% attachments.forEach(function (a) { %>
+          <li>
+            <a href="/mail/<%= m.id %>/attachment/<%= a.id %>" download>
+              <span class="fname"><%= a.filename %></span>
+              <span class="ftype"><%= a.content_type %></span>
+              <span class="fsize"><%= fmtBytes(a.size_bytes) %></span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+      <p class="hint">Attachments always download; they are never rendered or executed in the browser.</p>
+    </div>
+  <% } %>
+
+  <div class="view-tabs" data-view-tabs data-message="<%= m.id %>">
+    <% if (m.hasHtml) { %>
+      <a class="tab <%= view === 'html' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=html" data-view="html">HTML</a>
+    <% } %>
+    <a class="tab <%= view === 'text' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=text" data-view="text">Plain text</a>
+    <a class="tab <%= view === 'source' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=source" data-view="source">Source</a>
+  </div>
+
+  <div class="body-pane">
+    <% if (view === 'html' && m.hasHtml) { %>
+      <iframe class="html-body"
+              data-html-src="/mail/<%= m.id %>/html"
+              sandbox
+              referrerpolicy="no-referrer"
+              title="HTML message body"></iframe>
+      <p class="hint">Rendered with scripts disabled and remote content blocked. Inline images are served from this server only.</p>
+    <% } else if (view === 'source') { %>
+      <pre class="source" data-source-for="<%= m.id %>">Loading source&hellip;</pre>
+    <% } else { %>
+      <pre class="text-body"><%= m.body_text || '(no text content)' %></pre>
+      <% if (m.hasHtml && !m.body_text) { %>
+        <p class="hint">This message had no plain-text part; the text above was derived from its HTML.</p>
+      <% } %>
+    <% } %>
+  </div>
+</section>
+
+<%- include('partials/foot') %>

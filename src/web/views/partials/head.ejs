@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title><%= typeof title !== 'undefined' ? title : 'MailButler' %></title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9993;</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Mail<span>Butler</span></a>
+  <nav>
+    <% if (locals.addr) { %>
+      <a class="nav-link" href="/compose">Compose</a>
+      <span class="who" title="The mailbox you are reading"><%= addr %></span>
+      <a class="nav-link subtle" href="/?switch=1">Switch</a>
+      <form method="post" action="/signout" class="inline"><button class="linkish">Sign out</button></form>
+    <% } %>
+    <a class="nav-link subtle" href="/admin">Admin</a>
+  </nav>
+</header>
+<main>

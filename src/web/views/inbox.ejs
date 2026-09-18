@@ -1,0 +1,43 @@
+<%- include('partials/head', { title: (unread ? '(' + unread + ') ' : '') + addr + ' — MailButler', addr }) %>
+
+<section class="mailbox"
+         data-live-inbox
+         data-folder="<%= folder %>"
+         data-since="<%= maxId %>">
+
+  <div class="folder-tabs">
+    <a class="tab <%= folder === 'inbox' ? 'on' : '' %>" href="/mail?folder=inbox">
+      Inbox <span class="count" data-unread><%= unread ? unread : '' %></span>
+    </a>
+    <a class="tab <%= folder === 'sent' ? 'on' : '' %>" href="/mail?folder=sent">Sent</a>
+    <span class="spacer"></span>
+    <span class="live-dot" data-live-state="connecting" title="Live updates">live</span>
+    <a class="btn small" href="/compose">Compose</a>
+  </div>
+
+  <ul class="msg-list" data-list>
+    <% messages.forEach(function (m) { %>
+      <li class="msg <%= m.seen ? '' : 'unseen' %>">
+        <a href="/mail/<%= m.id %>">
+          <span class="who"><%= folder === 'sent' ? (m.toLine || '(no recipient)') : (m.from_name || m.from_addr) %></span>
+          <span class="subject"><%= m.subject || '(no subject)' %></span>
+          <span class="snippet"><%= m.snippet %></span>
+          <span class="meta">
+            <% if (m.has_attachments) { %><span class="clip" title="Has attachments">&#128206;</span><% } %>
+            <time datetime="<%= m.date_utc %>"><%= fmtDate(m.date_utc) %></time>
+          </span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+
+  <p class="empty" data-empty <%= messages.length ? 'hidden' : '' %>>
+    <% if (folder === 'sent') { %>
+      Nothing sent from this mailbox yet.
+    <% } else { %>
+      No mail yet. Send some to <code><%= addr %></code> and it will appear here on its own.
+    <% } %>
+  </p>
+</section>
+
+<%- include('partials/foot') %>

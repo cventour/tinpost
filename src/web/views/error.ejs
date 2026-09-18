@@ -1,0 +1,7 @@
+<%- include('partials/head', { title, addr: locals.addr || null }) %>
+<section class="panel narrow">
+  <h1><%= title %></h1>
+  <p><%= message %></p>
+  <p><a class="btn" href="<%= locals.addr ? '/mail' : '/' %>">Back to mail</a></p>
+</section>
+<%- include('partials/foot') %>

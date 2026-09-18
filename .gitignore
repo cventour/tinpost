@@ -1,0 +1,9 @@
+node_modules/
+*.log
+
+# A local data directory, if anyone points --data-dir at the repo
+data/
+*.db
+*.db-wal
+*.db-shm
+blobs/

@@ -1,0 +1,11 @@
+<%- include('partials/head', { title: 'Admin — MailButler', addr: null }) %>
+<section class="panel narrow">
+  <h1>Admin</h1>
+  <p class="lede">One password, no username. It was printed in the server log on first start.</p>
+  <form method="post" action="/admin/login" class="addr-form">
+    <input type="password" name="password" placeholder="Admin password" required autofocus aria-label="Admin password">
+    <button type="submit">Sign in</button>
+  </form>
+  <% if (error) { %><p class="error"><%= error %></p><% } %>
+</section>
+<%- include('partials/foot') %>

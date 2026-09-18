@@ -1,0 +1,33 @@
+<% const title = 'MailButler' %>
+<%- include('partials/head', { title, addr: null }) %>
+
+<section class="hero">
+  <h1>Which mailbox do you want to read?</h1>
+  <p class="lede">
+    Type any address. There is no sign-up and no password &mdash; a mailbox exists the
+    moment mail is addressed to it.
+  </p>
+
+  <form method="post" action="/" class="addr-form" autocomplete="off">
+    <input type="email" name="address" placeholder="alice@lab.local" required autofocus
+           value="<%= addr || '' %>" aria-label="Email address to read">
+    <button type="submit">Open mailbox</button>
+  </form>
+
+  <% if (error) { %><p class="error"><%= error %></p><% } %>
+
+  <div class="policy-note">
+    <% if (policy === 'any') { %>
+      Accepting mail for <strong>any domain</strong>.
+    <% } else { %>
+      Accepting mail only for:
+      <% if (domains.length) { %>
+        <% domains.forEach(function (d, i) { %><code><%= d %></code><%= i < domains.length - 1 ? ' ' : '' %><% }) %>
+      <% } else { %>
+        <em>no domains configured yet &mdash; all mail is being refused.</em>
+      <% } %>
+    <% } %>
+  </div>
+</section>
+
+<%- include('partials/foot') %>

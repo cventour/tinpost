@@ -1,0 +1,56 @@
+<%- include('partials/head', { title: 'Compose — MailButler', addr }) %>
+
+<section class="panel compose">
+  <h1>New message</h1>
+  <p class="lede">Delivered inside this server only. Any domain you address is reachable, so long as the accept policy allows it.</p>
+
+  <% if (error) { %><p class="error"><%= error %></p><% } %>
+
+  <form method="post" action="/compose" enctype="multipart/form-data" autocomplete="off">
+    <input type="hidden" name="inReplyTo" value="<%= draft.inReplyTo || '' %>">
+    <input type="hidden" name="references" value="<%= draft.references || '' %>">
+
+    <label class="field">
+      <span>From</span>
+      <input type="text" value="<%= addr %>" disabled>
+    </label>
+
+    <label class="field">
+      <span>To</span>
+      <input type="text" name="to" required placeholder="alice@lab.local, bob@corp.test" value="<%= draft.to %>">
+    </label>
+
+    <label class="field">
+      <span>Cc</span>
+      <input type="text" name="cc" placeholder="optional" value="<%= draft.cc %>">
+    </label>
+
+    <label class="field">
+      <span>Subject</span>
+      <input type="text" name="subject" value="<%= draft.subject %>">
+    </label>
+
+    <fieldset class="format">
+      <legend>Body format</legend>
+      <label><input type="radio" name="format" value="text" checked> Plain text</label>
+      <label><input type="radio" name="format" value="html"> HTML <span class="hint inline">(a plain-text alternative is generated automatically)</span></label>
+    </fieldset>
+
+    <label class="field tall">
+      <span>Message</span>
+      <textarea name="text" rows="14" placeholder="Write your message..."><%= draft.text %></textarea>
+    </label>
+
+    <label class="field">
+      <span>Attachments</span>
+      <input type="file" name="attachments" multiple>
+    </label>
+
+    <div class="actions">
+      <button type="submit" class="btn primary">Send</button>
+      <a class="btn ghost" href="/mail">Cancel</a>
+    </div>
+  </form>
+</section>
+
+<%- include('partials/foot') %>
