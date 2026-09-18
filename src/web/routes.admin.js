@@ -187,7 +187,9 @@ export async function registerAdminRoutes(app) {
     return reply.view(
       'admin/mailboxes',
       await mailboxesModel({
-        notice: `Deleted ${removed} message(s) for ${address} and reclaimed ${gc.removed} stored file(s).`,
+        notice:
+          `Deleted ${removed} message(s) for ${address} and reclaimed ${gc.removed} stored file(s).` +
+          unwritableNote(gc),
       }),
     );
   });
@@ -210,7 +212,9 @@ export async function registerAdminRoutes(app) {
     const gc = await blobs.gc(db.referencedHashes());
     return reply.view(
       'admin/storage',
-      await storageModel({ notice: `Reclaimed ${gc.removed} unreferenced file(s), ${fmtBytesPlain(gc.bytes)}.` }),
+      await storageModel({
+        notice: `Reclaimed ${gc.removed} unreferenced file(s), ${fmtBytesPlain(gc.bytes)}.` + unwritableNote(gc),
+      }),
     );
   });
 
@@ -226,7 +230,9 @@ export async function registerAdminRoutes(app) {
     logger.info?.(`admin: purged all mail (${removed} messages, ${gc.removed} blobs)`);
     return reply.view(
       'admin/storage',
-      await storageModel({ notice: `Purged ${removed} message(s) and freed ${fmtBytesPlain(gc.bytes)}.` }),
+      await storageModel({
+        notice: `Purged ${removed} message(s) and freed ${fmtBytesPlain(gc.bytes)}.` + unwritableNote(gc),
+      }),
     );
   });
 }
@@ -238,6 +244,19 @@ function pickSubmitted(body) {
     if (key in body) out[key] = body[key];
   }
   return out;
+}
+
+/**
+ * Files a reclaim could not delete are almost always left by a `sudo` run: root wrote
+ * them, and an ordinary user cannot remove them. Saying so names the fix.
+ */
+function unwritableNote(gc) {
+  if (!gc.unwritable) return '';
+  return (
+    ` ${gc.unwritable} file(s) could not be deleted because they belong to another user —` +
+    ' they were most likely written while Tinpost was running with sudo. Remove them with' +
+    ' sudo, or take ownership of the data directory.'
+  );
 }
 
 function fmtBytesPlain(n) {

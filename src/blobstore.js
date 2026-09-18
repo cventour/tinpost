@@ -143,16 +143,30 @@ export class BlobStore {
   async gc(referenced) {
     let removed = 0;
     let bytes = 0;
+    let unwritable = 0;
+
     for await (const hash of this.list()) {
       if (referenced.has(hash)) continue;
       const p = this.pathFor(hash);
-      const s = await sizeOrNull(p);
-      await unlink(p).catch(() => {});
-      removed += 1;
-      bytes += s ?? 0;
+      const size = await sizeOrNull(p);
+
+      // A failed delete must not be counted as a success: reporting space that was
+      // never freed is worse than reporting the failure. This happens in practice
+      // when an instance was once run with sudo — the blobs it wrote are owned by
+      // root, and an ordinary user cannot remove them.
+      try {
+        await unlink(p);
+        removed += 1;
+        bytes += size ?? 0;
+      } catch (err) {
+        if (err.code === 'ENOENT') continue; // already gone; nothing to report
+        if (err.code === 'EACCES' || err.code === 'EPERM') unwritable += 1;
+        else throw err;
+      }
     }
+
     await this.#pruneEmptyDirs();
-    return { removed, bytes };
+    return { removed, bytes, unwritable };
   }
 
   async #pruneEmptyDirs() {

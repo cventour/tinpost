@@ -6,6 +6,13 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- Fixed: **"Reclaim space" no longer claims to have freed files it could not delete.**
+  It counted every attempt as a success, so a file it had no permission to remove was
+  reported as reclaimed and the byte total was wrong. It now reports those separately
+  and says what they usually are: files written while Tinpost was running under sudo,
+  which an ordinary user cannot remove. The same applies to purging and to deleting a
+  mailbox.
+
 - New: **Tinpost takes the standard SMTP port 25 when it is allowed to.** Started as
   root, it listens on 25 with no flag — running as root is read as intent to be a real
   mail server. Started as an ordinary user on macOS or Linux, where 25 is reserved, it

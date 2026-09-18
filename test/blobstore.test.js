@@ -133,3 +133,45 @@ test('the database stays small when a large attachment is delivered', async (t) 
   assert.ok(blobBytes > 10 * 1024 * 1024, 'the bytes really were stored');
   assert.ok(dbBytes < 512 * 1024, `database grew to ${dbBytes} bytes; it should stay an index`);
 });
+
+test('a blob that cannot be deleted is reported, not counted as reclaimed', async (t) => {
+  const lab = await makeLab();
+  t.after(() => lab.cleanup());
+
+  const { chmod } = await import('node:fs/promises');
+  const { dirname } = await import('node:path');
+
+  const keep = await lab.blobs.putBuffer('referenced');
+  const stuck = await lab.blobs.putBuffer('orphaned but undeletable');
+
+  // Removing write permission on the containing directory is what makes a file
+  // undeletable — the same situation a root-written blob leaves for a normal user.
+  const dir = dirname(lab.blobs.pathFor(stuck.hash));
+  await chmod(dir, 0o500);
+
+  let result;
+  try {
+    result = await lab.blobs.gc(new Set([keep.hash]));
+    assert.equal(await lab.blobs.has(stuck.hash), true, 'the file really is still there');
+  } finally {
+    // Restore before the lab is torn down, or the temp directory cannot be removed.
+    await chmod(dir, 0o700).catch(() => {});
+  }
+
+  assert.equal(result.removed, 0, 'nothing was actually freed');
+  assert.equal(result.bytes, 0, 'so no bytes may be claimed either');
+  assert.equal(result.unwritable, 1, 'and the failure is reported');
+});
+
+test('a blob that vanished before gc reached it is not counted either', async (t) => {
+  const lab = await makeLab();
+  t.after(() => lab.cleanup());
+
+  const { unlink } = await import('node:fs/promises');
+  const gone = await lab.blobs.putBuffer('deleted out from under us');
+  await unlink(lab.blobs.pathFor(gone.hash));
+
+  const result = await lab.blobs.gc(new Set());
+  assert.equal(result.removed, 0);
+  assert.equal(result.unwritable, 0, 'a missing file is not a permission problem');
+});

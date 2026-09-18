@@ -31,7 +31,14 @@
     <%= portNotice.detail %>
   </p>
 <% } else if (locals.privilege && privilege.root) { %>
-  <p class="notice">Running as root, so the standard SMTP port 25 is available.</p>
+  <p class="notice">
+    <% if (listeners.smtpPort === 25) { %>
+      Running as root, so Tinpost is on the standard SMTP port 25.
+    <% } else { %>
+      Running as root, so port 25 is available if you want it &mdash; this instance is
+      on <%= listeners.smtpPort %> because that is what is set here.
+    <% } %>
+  </p>
 <% } %>
 <% if (pending.length) { %>
   <p class="warn">
