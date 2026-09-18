@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
 
 const DEFAULTS = {
   smtpPort: 2525,
@@ -53,7 +52,6 @@ export function loadConfig(flags = {}) {
     // Whether a size was actually asked for, as opposed to defaulted. An explicit
     // one is an instruction and seeds the stored setting the admin page edits.
     maxSizeExplicit: flags.maxSize !== undefined || !!process.env.MAILBUTLER_MAX_SIZE,
-    adminPassword: flags.adminPassword || process.env.MAILBUTLER_ADMIN_PASSWORD || null,
   };
 
   mkdirSync(cfg.dataDir, { recursive: true });
@@ -61,13 +59,6 @@ export function loadConfig(flags = {}) {
   mkdirSync(cfg.tmpDir, { recursive: true });
 
   return Object.freeze(cfg);
-}
-
-/** A readable password for first-run bootstrap: no ambiguous characters. */
-export function generatePassword() {
-  const alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = randomBytes(16);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 }
 
 export { DEFAULTS };

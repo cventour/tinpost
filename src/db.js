@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 const SCHEMA_VERSION = 1;
 
@@ -113,44 +113,6 @@ export class Db {
   setAcceptPolicy(policy) {
     if (policy !== 'any' && policy !== 'allowlist') throw new Error(`bad policy: ${policy}`);
     this.setSetting('accept_policy', policy);
-  }
-
-  // ---------- admin password ----------
-
-  /**
-   * @param {string} plain
-   * @param {{ mustChange?: boolean }} [opts] mark the password as temporary, so the
-   *   admin page forces it to be replaced before anything else can be done.
-   */
-  setAdminPassword(plain, { mustChange = false } = {}) {
-    const salt = randomBytes(16);
-    const derived = scryptSync(plain, salt, 64);
-    this.setSetting('admin_password_hash', `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`);
-    this.setSetting('admin_password_must_change', mustChange ? '1' : '0');
-  }
-
-  /** True while the admin is still on the password generated at first start. */
-  adminPasswordMustChange() {
-    return this.getSetting('admin_password_must_change') === '1';
-  }
-
-  hasAdminPassword() {
-    return this.getSetting('admin_password_hash') !== null;
-  }
-
-  verifyAdminPassword(plain) {
-    const stored = this.getSetting('admin_password_hash');
-    if (!stored) return false;
-    const [scheme, saltHex, hashHex] = stored.split('$');
-    if (scheme !== 'scrypt') return false;
-    const expected = Buffer.from(hashHex, 'hex');
-    let actual;
-    try {
-      actual = scryptSync(plain, Buffer.from(saltHex, 'hex'), expected.length);
-    } catch {
-      return false;
-    }
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
 
   // ---------- domains ----------

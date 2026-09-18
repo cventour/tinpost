@@ -47,20 +47,11 @@ function formBody(lab, overrides = {}) {
 
 async function withAdmin(t) {
   const lab = await makeLab();
-  lab.db.setAdminPassword('pw-for-tests');
   const smtp = createSmtpServer({ ...lab, config: lab.config, logger: quiet });
   await smtp.listen();
   const web = await createWebServer({ ...lab, config: lab.config, smtp, logger: quiet });
   // Bind for real, so the routes see the ports this process actually holds.
   await web.app.listen({ port: 0, host: '127.0.0.1' });
-
-  const login = await web.app.inject({
-    method: 'POST',
-    url: '/admin/login',
-    headers: form,
-    payload: 'password=pw-for-tests',
-  });
-  const cookie = login.headers['set-cookie'].split(';')[0];
 
   t.after(async () => {
     await web.close();
@@ -72,7 +63,7 @@ async function withAdmin(t) {
     ...lab,
     app: web.app,
     smtp,
-    admin: { cookie, ...form },
+    admin: { ...form },
     ports: { http: web.app.server.address().port, smtp: smtp.address().port },
   };
 }

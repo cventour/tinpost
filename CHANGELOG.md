@@ -6,6 +6,15 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- Changed: **the admin area no longer has a password.** Gating it protected nothing:
+  the mailboxes beside it are readable by anyone who can reach the web port, so a lock
+  on one of two open doors only added a step. MailButler now has no passwords at all,
+  binds to loopback by default, and says so plainly on the page and in the log when it
+  does not. Purging still needs its typed confirmation.
+- New: the address you type on the entry page completes against the mailboxes this
+  instance already knows. With one candidate the rest of the address fills in and stays
+  selected, so carrying on typing replaces it; with several, all of them are listed and
+  the arrow keys pick one. Entering a brand-new address is no harder than before.
 - New: the admin area is now a settings page with a vertical ribbon down the side —
   SMTP, Domains, Mailboxes, Storage and Password. A button at the top collapses it to
   icons alone when you want the width back, and expands it again; hovering a collapsed

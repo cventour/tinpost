@@ -29,15 +29,13 @@ Windows.
 npx mailbutler serve
 ```
 
-That prints the URLs and, on the first run, a generated admin password:
+That prints the URLs:
 
 ```
   Webmail   http://127.0.0.1:8025
-  Admin     http://127.0.0.1:8025/admin
+  Admin     http://127.0.0.1:8025/admin   (no password)
   SMTP      127.0.0.1:2525   (no AUTH, no TLS)
   Data      /home/you/.mailbutler
-
-  Admin password: kR7mNpQ2vXwT4yBz
 ```
 
 Open the webmail URL, type any address — `alice@lab.local` will do — and you are in
@@ -97,6 +95,11 @@ Type an address on the entry page and you are reading that mailbox. There is no
 password, because in a lab the whole point is that anyone can look at any mailbox.
 A mailbox is not something you create: it exists as soon as mail is addressed to it.
 
+Addresses this instance has already seen complete as you type. With one candidate the
+rest of the address fills in and stays selected, so carrying on typing replaces it;
+with several, they are listed and the arrow keys pick one. A new address is never
+harder to enter than an existing one.
+
 Each message can be read three ways:
 
 - **HTML** — rendered in a sandboxed frame with scripts disabled and every network
@@ -128,9 +131,9 @@ indistinguishable from received mail.
 
 ## Admin
 
-`/admin` is protected by a single password with no username. It is generated on the
-first run and printed to the log; set your own with `--admin-password`, or with the
-`MAILBUTLER_ADMIN_PASSWORD` environment variable. It is stored hashed.
+`/admin` has no password. Gating it would protect nothing: the mailboxes beside it are
+already readable by anyone who can reach the web port, so the honest answer is to bind
+to loopback and say so plainly rather than put a lock on one of two open doors.
 
 From there you can:
 
@@ -151,13 +154,17 @@ mailbutler serve [options]
   --http-port <n>        Web listen port (default 8025)
   --host <addr>          Address to bind (default 127.0.0.1)
   --data-dir <path>      Where the database and stored files live
-  --admin-password <pw>  Set the admin password
   --max-size <bytes>     Largest accepted message (default 25 MB)
 ```
 
 Each has an environment-variable equivalent: `MAILBUTLER_SMTP_PORT`,
 `MAILBUTLER_HTTP_PORT`, `MAILBUTLER_HOST`, `MAILBUTLER_DATA_DIR`,
-`MAILBUTLER_ADMIN_PASSWORD`, `MAILBUTLER_MAX_SIZE`.
+`MAILBUTLER_MAX_SIZE`.
+
+The limits, the server name and the ports can also be set from the admin page. The
+limits apply to the next connection; the ports apply at the next start, because a
+listening port cannot move without dropping the page you are on. A port given on the
+command line overrides what is saved.
 
 Port 25 needs root on macOS and Linux. If you want the standard port:
 
@@ -186,10 +193,12 @@ On Windows the default is `%LOCALAPPDATA%\MailButler`.
 
 ## Security
 
-This is a lab tool, and it is deliberately open: **anyone who can reach the web port
-can read every mailbox.** That is the feature, not an oversight. It binds to
-`127.0.0.1` by default for that reason. Use `--host 0.0.0.0` only on an isolated lab
-network — the admin page warns you when it is in effect.
+This is a lab tool, and it is deliberately open: **there are no passwords anywhere.**
+Anyone who can reach the web port can read every mailbox, change the settings and
+delete all the mail. That is the feature, not an oversight — a lab that makes you
+manage credentials is a lab nobody uses. It binds to `127.0.0.1` by default for that
+reason. Use `--host 0.0.0.0` only on an isolated lab network; the admin page and the
+startup log both warn you when it is in effect.
 
 Within that model, the reader is protected from the mail:
 
@@ -198,8 +207,6 @@ Within that model, the reader is protected from the mail:
 - Attachments are always served as downloads with a neutral content type and
   `nosniff`, so nothing executes in the browser
 - Stored files are named by content hash, so hostile filenames cannot traverse paths
-- The admin password is hashed with scrypt and never logged
-- Admin sessions are signed, `HttpOnly`, and expire when idle
 
 Do not put real credentials or real personal data into it, and do not expose it to an
 untrusted network.

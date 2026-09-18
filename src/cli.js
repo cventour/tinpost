@@ -26,7 +26,6 @@ Options:
   --host <addr>          Address to bind (default 127.0.0.1; use 0.0.0.0 to expose
                          on an isolated lab network — every mailbox becomes readable)
   --data-dir <path>      Where the database and stored files live
-  --admin-password <pw>  Set the admin password (otherwise one is generated on first run)
   --max-size <bytes>     Largest accepted message (default 26214400, i.e. 25 MB)
   -h, --help             Show this help
   -v, --version          Show the version
@@ -41,7 +40,6 @@ const { values, positionals } = parseArgs({
     'http-port': { type: 'string' },
     host: { type: 'string' },
     'data-dir': { type: 'string' },
-    'admin-password': { type: 'string' },
     'max-size': { type: 'string' },
     help: { type: 'boolean', short: 'h' },
     version: { type: 'boolean', short: 'v' },
@@ -96,7 +94,6 @@ try {
     httpPort: intFlag('http-port'),
     host: values.host,
     dataDir: values['data-dir'],
-    adminPassword: values['admin-password'],
     maxSize: sizeFlag(),
   });
 } catch (err) {
@@ -113,38 +110,23 @@ try {
   process.exit(1);
 }
 
-const { config, ports, generatedPassword, passwordOverridden } = instance;
+const { config, ports } = instance;
 const displayHost = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
 
 console.log(`
   MailButler is running.
 
   Webmail   http://${displayHost}:${ports.http}
-  Admin     http://${displayHost}:${ports.http}/admin
+  Admin     http://${displayHost}:${ports.http}/admin   (no password)
   SMTP      ${config.host}:${ports.smtp}   (no AUTH, no TLS)
   Data      ${config.dataDir}
 `);
 
-if (generatedPassword) {
-  console.log(`  Admin password: ${generatedPassword}`);
-  console.log(
-    `  This is a temporary password for the first sign-in only. Enter it at\n` +
-      `  ${displayHost}:${ports.http}/admin and you will be asked to choose your own.\n`,
-  );
-}
-
-if (passwordOverridden) {
-  console.log(
-    `  Note: --admin-password replaced the password already stored for this data\n` +
-      `  directory. Drop the flag from your start command to keep using the one you\n` +
-      `  set in the admin page.\n`,
-  );
-}
-
 if (config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !== '::1') {
   console.log(
-    `  Warning: bound to ${config.host}, so anyone who can reach this host can read every\n` +
-      `  mailbox. Mailbox access is unauthenticated by design — only do this on an isolated lab network.\n`,
+    `  Warning: bound to ${config.host}, not loopback. MailButler has no passwords at all:\n` +
+      `  anyone who can reach this host can read every mailbox, change these settings and\n` +
+      `  delete all mail. Only do this on an isolated lab network.\n`,
   );
 }
 

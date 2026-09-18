@@ -9,10 +9,21 @@
   </p>
 
   <form method="post" action="/" class="addr-form" autocomplete="off">
-    <input type="email" name="address" placeholder="alice@lab.local" required autofocus
-           value="<%= addr || '' %>" aria-label="Email address to read">
+    <div class="combo" data-mailbox-combo>
+      <%# type="text", not "email": an email input forbids setSelectionRange, which the
+          inline completion needs. The server validates the address either way. %>
+      <input type="text" inputmode="email" name="address" placeholder="alice@lab.local" required autofocus
+             value="<%= addr || '' %>" aria-label="Email address to read"
+             role="combobox" aria-expanded="false" aria-autocomplete="both"
+             aria-controls="mailbox-options" autocomplete="off" spellcheck="false">
+      <ul class="combo-list" id="mailbox-options" role="listbox" hidden></ul>
+    </div>
     <button type="submit">Open mailbox</button>
   </form>
+  <p class="hint combo-hint">
+    Type any address. Existing mailboxes complete as you go &mdash; a new one is created
+    the moment mail arrives for it.
+  </p>
 
   <% if (error) { %><p class="error"><%= error %></p><% } %>
 

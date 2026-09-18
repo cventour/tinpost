@@ -329,7 +329,7 @@ Icons are a single inline SVG sprite on a 24px grid with a 1.6 stroke, rendered 
 ### Settings Ribbon (signature component)
 The one component that is more than the sum of its tokens.
 
-- **Expanded (default, 190px):** A `--sunk` column of 20px icon + label rows at 7px radius, grouped under uppercase 11px headings "Mail" (SMTP, Domains, Mailboxes) and "Instance" (Storage, Password). A collapse toggle sits on top; a hairline-topped footer at the bottom carries the message count and disk usage in tabular numerals.
+- **Expanded (default, 190px):** A `--sunk` column of 20px icon + label rows at 7px radius, grouped under uppercase 11px headings "Mail" (SMTP, Domains, Mailboxes) and "Instance" (Storage). A collapse toggle sits on top; a hairline-topped footer at the bottom carries the message count and disk usage in tabular numerals.
 - **Active item:** `--panel` fill plus `--shadow`, `--ink` text at 600, and the icon alone in `--accent`.
 - **Hover:** `color-mix(in srgb, var(--ink) 6%, transparent)` — a tint of the text colour, so it works identically in both themes.
 - **Collapsed (62px):** Group headings, labels and toggle text are hidden; items centre their icons. Each item's label is duplicated as a `.ribbon-tip` that flies out on hover *and* on `:focus-visible` — an inverted `--ink`/`--panel` chip 10px to the right, 5px radius, fading opacity and 4px of travel over .14s. Tooltips exist only in the collapsed state (`.ribbon:not(.collapsed) .ribbon-tip { display: none }`).

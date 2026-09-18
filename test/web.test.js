@@ -7,7 +7,6 @@ const quiet = { info() {}, error() {} };
 
 async function withWeb(t) {
   const lab = await makeLab();
-  lab.db.setAdminPassword('secret-pw');
   const web = await createWebServer({ ...lab, config: lab.config, logger: quiet });
   t.after(async () => {
     await web.close();
@@ -337,93 +336,62 @@ test('the live stream pushes new mail to an open inbox', async (t) => {
   controller.abort();
 });
 
-test('admin routes are closed until the password is given', async (t) => {
+test('the admin area is open, by design', async (t) => {
   const lab = await withWeb(t);
 
-  for (const url of ['/admin', '/admin/policy', '/admin/purge', '/admin/gc']) {
-    const res = await lab.app.inject({ method: url === '/admin' ? 'GET' : 'POST', url });
-    assert.equal(res.statusCode, 302, `${url} must be guarded`);
-    assert.equal(res.headers.location, '/admin/login');
+  // Mailboxes are readable by anyone who can reach the port, so gating the settings
+  // beside them would protect nothing. This asserts the decision rather than
+  // assuming it.
+  for (const url of ['/admin', '/admin/domains', '/admin/mailboxes', '/admin/storage']) {
+    const res = await lab.app.inject({ url });
+    assert.equal(res.statusCode, 200, `${url} should be reachable`);
   }
 });
 
-test('a wrong admin password is refused and a right one works', async (t) => {
-  const lab = await withWeb(t);
-
-  const wrong = await lab.app.inject({
-    method: 'POST',
-    url: '/admin/login',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    payload: 'password=guess',
-  });
-  assert.equal(wrong.statusCode, 401);
-
-  const right = await lab.app.inject({
-    method: 'POST',
-    url: '/admin/login',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    payload: 'password=secret-pw',
-  });
-  assert.equal(right.statusCode, 302);
-  assert.equal(right.headers.location, '/admin');
-  assert.match(right.headers['set-cookie'], /mb_admin=/);
-  assert.match(right.headers['set-cookie'], /HttpOnly/i);
-});
-
-test('a forged admin cookie is rejected', async (t) => {
-  const lab = await withWeb(t);
-  const forged = `mb_admin=${Date.now()}.deadbeef.${'0'.repeat(64)}`;
-  const res = await lab.app.inject({ url: '/admin', headers: { cookie: forged } });
-  assert.equal(res.statusCode, 302);
-  assert.equal(res.headers.location, '/admin/login');
-});
-
-test('an admin can change the policy, manage domains and purge', async (t) => {
+test('the settings can be changed without signing in', async (t) => {
   const lab = await withWeb(t);
   await seed(lab);
 
-  const login = await lab.app.inject({
+  await lab.app.inject({
     method: 'POST',
-    url: '/admin/login',
+    url: '/admin/policy',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    payload: 'password=secret-pw',
+    payload: 'policy=allowlist',
   });
-  const cookie = login.headers['set-cookie'].split(';')[0];
-  const admin = { cookie, 'content-type': 'application/x-www-form-urlencoded' };
-
-  await lab.app.inject({ method: 'POST', url: '/admin/policy', headers: admin, payload: 'policy=allowlist' });
   assert.equal(lab.db.getAcceptPolicy(), 'allowlist');
 
-  await lab.app.inject({ method: 'POST', url: '/admin/domains/add', headers: admin, payload: 'domain=lab.local, corp.test' });
+  await lab.app.inject({
+    method: 'POST',
+    url: '/admin/domains/add',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    payload: 'domain=lab.local, corp.test',
+  });
   assert.deepEqual(lab.db.listDomains(), ['corp.test', 'lab.local']);
+});
 
-  await lab.app.inject({ method: 'POST', url: '/admin/domains/remove', headers: admin, payload: 'domain=corp.test' });
-  assert.deepEqual(lab.db.listDomains(), ['lab.local']);
+test('purging still needs the typed confirmation', async (t) => {
+  const lab = await withWeb(t);
+  await seed(lab);
+  const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
-  // Purging needs the typed confirmation.
-  const noConfirm = await lab.app.inject({ method: 'POST', url: '/admin/purge', headers: admin, payload: 'confirm=yes' });
-  assert.equal(noConfirm.statusCode, 400);
+  // Losing the password does not make the destructive control casual.
+  const refused = await lab.app.inject({ method: 'POST', url: '/admin/purge', headers: form, payload: 'confirm=yes' });
+  assert.equal(refused.statusCode, 400);
   assert.equal(lab.db.stats().messages, 1, 'nothing deleted without the confirmation');
 
-  await lab.app.inject({ method: 'POST', url: '/admin/purge', headers: admin, payload: 'confirm=PURGE' });
+  await lab.app.inject({ method: 'POST', url: '/admin/purge', headers: form, payload: 'confirm=PURGE' });
   assert.equal(lab.db.stats().messages, 0);
   assert.equal((await lab.blobs.totalSize()).count, 0, 'purge reclaims the disk too');
 });
 
 test('an invalid domain is refused rather than stored', async (t) => {
   const lab = await withWeb(t);
-  const login = await lab.app.inject({
+  const res = await lab.app.inject({
     method: 'POST',
-    url: '/admin/login',
+    url: '/admin/domains/add',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    payload: 'password=secret-pw',
+    payload: 'domain=not a domain',
   });
-  const admin = {
-    cookie: login.headers['set-cookie'].split(';')[0],
-    'content-type': 'application/x-www-form-urlencoded',
-  };
-
-  const res = await lab.app.inject({ method: 'POST', url: '/admin/domains/add', headers: admin, payload: 'domain=not a domain' });
   assert.equal(res.statusCode, 400);
   assert.deepEqual(lab.db.listDomains(), []);
 });
@@ -434,4 +402,57 @@ test('an unknown route renders the error page rather than a stack trace', async 
   assert.equal(res.statusCode, 404);
   assert.match(res.body, /Not found/);
   assert.doesNotMatch(res.body, /at Object|node_modules/, 'internals must not leak');
+});
+
+// ---------- mailbox autocomplete ----------
+
+test('the mailbox suggestions list every match, prefixes first', async (t) => {
+  const lab = await withWeb(t);
+  for (const to of ['alice@lab.local', 'alan@lab.local', 'albert@corp.test', 'bob@corp.test']) {
+    await seed(lab, { to });
+  }
+
+  const prefix = (await lab.app.inject({ url: '/api/mailboxes?q=al' })).json();
+  assert.deepEqual(
+    prefix.addresses,
+    ['alan@lab.local', 'albert@corp.test', 'alice@lab.local'],
+    'every match is offered, so the operator can choose rather than be guessed at',
+  );
+
+  // A substring that is not a prefix still matches, but ranks below one that is.
+  const substring = (await lab.app.inject({ url: '/api/mailboxes?q=corp' })).json();
+  assert.ok(substring.addresses.includes('albert@corp.test'));
+  assert.ok(substring.addresses.includes('bob@corp.test'));
+
+  const mixed = (await lab.app.inject({ url: '/api/mailboxes?q=bob' })).json();
+  assert.equal(mixed.addresses[0], 'bob@corp.test', 'a prefix match leads');
+});
+
+test('the suggestions are case-insensitive and cope with nothing typed', async (t) => {
+  const lab = await withWeb(t);
+  await seed(lab, { to: 'Alice@Lab.Local' });
+
+  const upper = (await lab.app.inject({ url: '/api/mailboxes?q=ALICE' })).json();
+  assert.deepEqual(upper.addresses, ['alice@lab.local']);
+
+  const empty = (await lab.app.inject({ url: '/api/mailboxes' })).json();
+  assert.ok(Array.isArray(empty.addresses));
+});
+
+test('the suggestion list is capped so a big lab cannot flood the field', async (t) => {
+  const lab = await withWeb(t);
+  for (let i = 0; i < 30; i += 1) await seed(lab, { to: `user${i}@lab.local` });
+
+  const res = (await lab.app.inject({ url: '/api/mailboxes?q=user' })).json();
+  assert.equal(res.addresses.length, 20);
+});
+
+test('the entry field is a text input, because completion needs selection', async (t) => {
+  const lab = await withWeb(t);
+  const res = await lab.app.inject({ url: '/' });
+
+  // An email input forbids setSelectionRange, which silently breaks inline completion.
+  assert.match(res.body, /name="address"/);
+  assert.doesNotMatch(res.body, /type="email" name="address"/);
+  assert.match(res.body, /role="combobox"/);
 });

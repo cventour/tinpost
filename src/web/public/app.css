@@ -473,3 +473,27 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
 .policy-form label { display: block; margin-bottom: 10px; max-width: 72ch; }
 .policy-form .btn { margin-top: 4px; }
 .domains .addr-form { margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------
+   Mailbox autocomplete
+   --------------------------------------------------------------- */
+
+.combo { position: relative; flex: 1 1 260px; }
+.combo input { width: 100%; }
+
+.combo-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  margin: 0; padding: 4px; list-style: none;
+  max-height: 260px; overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.combo-option {
+  padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  font-family: var(--mono); font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.combo-option:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.combo-option[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.combo-hint { margin: 10px 0 0; }

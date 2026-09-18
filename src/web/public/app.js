@@ -212,7 +212,156 @@
     });
   }
 
+  /* ---------- mailbox autocomplete ---------- */
+
+  /* A combobox over the addresses this instance already knows. Typing completes the
+     rest of the first match inline with the completion selected, so carrying on
+     typing replaces it and nothing is ever forced on the operator — a new address
+     stays as easy to enter as an existing one. */
+  function initMailboxCombo(combo) {
+    var input = combo.querySelector('input');
+    var list = combo.querySelector('.combo-list');
+    var options = [];
+    var active = -1;
+    var lastQuery = null;
+    var completedTo = null;
+
+    function close() {
+      list.hidden = true;
+      list.innerHTML = '';
+      options = [];
+      active = -1;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    }
+
+    function render() {
+      if (!options.length) return close();
+      list.innerHTML = options
+        .map(function (a, i) {
+          return '<li role="option" id="mb-opt-' + i + '" class="combo-option"' +
+            (i === active ? ' aria-selected="true"' : '') + '>' + esc(a) + '</li>';
+        })
+        .join('');
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function highlight(next) {
+      active = next;
+      Array.prototype.forEach.call(list.children, function (li, i) {
+        if (i === active) li.setAttribute('aria-selected', 'true');
+        else li.removeAttribute('aria-selected');
+      });
+      if (active >= 0) {
+        input.setAttribute('aria-activedescendant', 'mb-opt-' + active);
+        list.children[active].scrollIntoView({ block: 'nearest' });
+      } else {
+        input.removeAttribute('aria-activedescendant');
+      }
+    }
+
+    function choose(value) {
+      input.value = value;
+      completedTo = null;
+      close();
+    }
+
+    /* Fill in the rest of the best match and select it, so the next keystroke
+       overwrites the suggestion rather than fighting it. Never do this while the
+       caret is mid-string or the operator is deleting. */
+    function completeInline(typed, best) {
+      if (!best || best === typed) return;
+      if (best.indexOf(typed) !== 0) return;
+      // Selection is unavailable on some input types and in some browsers; the
+      // dropdown is the real affordance, so failing here must not break it.
+      try {
+        if (input.selectionStart !== typed.length) return;
+        input.value = best;
+        input.setSelectionRange(typed.length, best.length);
+        completedTo = best;
+      } catch (e) {
+        input.value = typed;
+      }
+    }
+
+    function suggest(allowInline) {
+      var typed = input.value.trim().toLowerCase();
+      if (!typed) return close();
+      if (typed === lastQuery) return;
+      lastQuery = typed;
+
+      fetch('/api/mailboxes?q=' + encodeURIComponent(typed), { headers: { accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || input.value.trim().toLowerCase() !== typed) return;
+          // Every match is offered, not just the one completed inline: with several
+          // candidates the operator needs to see the choice, not be quietly committed
+          // to the first one.
+          options = data.addresses.filter(function (a) { return a !== typed; });
+          active = -1;
+          render();
+          // Only complete in place when there is exactly one candidate. With several,
+          // filling one of them in would be a guess, and the list is the honest answer.
+          if (allowInline) {
+            var starts = options.filter(function (a) { return a.indexOf(typed) === 0; });
+            if (starts.length === 1) completeInline(typed, starts[0]);
+          }
+        })
+        .catch(close);
+    }
+
+    input.addEventListener('input', function (ev) {
+      // Deleting should never re-complete what was just removed.
+      var deleting = ev.inputType && ev.inputType.indexOf('delete') === 0;
+      completedTo = null;
+      suggest(!deleting);
+    });
+
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        if (list.hidden || !options.length) return;
+        ev.preventDefault();
+        // -1 is "nothing selected", so the cycle runs over options.length + 1 slots
+        // and passes back through the typed text on the way round.
+        var slots = options.length + 1;
+        var step = ev.key === 'ArrowDown' ? 1 : -1;
+        highlight(((active + 1 + step) % slots + slots) % slots - 1);
+      } else if (ev.key === 'Enter') {
+        if (!list.hidden && active >= 0) {
+          ev.preventDefault();
+          choose(options[active]);
+        } else if (completedTo) {
+          // Accept the inline completion rather than submitting a half-typed address.
+          try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {}
+          completedTo = null;
+        }
+      } else if (ev.key === 'Escape') {
+        if (!list.hidden) {
+          ev.preventDefault();
+          close();
+        }
+      } else if (ev.key === 'Tab' && completedTo) {
+        try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {}
+        completedTo = null;
+      }
+    });
+
+    list.addEventListener('mousedown', function (ev) {
+      var li = ev.target.closest('.combo-option');
+      if (!li) return;
+      ev.preventDefault(); // keep focus in the field
+      choose(li.textContent);
+    });
+
+    input.addEventListener('blur', function () { setTimeout(close, 120); });
+    input.addEventListener('focus', function () { if (input.value.trim()) suggest(false); });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    var combo = document.querySelector('[data-mailbox-combo]');
+    if (combo) initMailboxCombo(combo);
+
     var themeBtn = document.querySelector('[data-theme-toggle]');
     if (themeBtn) initTheme(themeBtn);
 

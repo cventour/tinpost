@@ -56,6 +56,25 @@ export async function registerMailRoutes(app) {
     return reply.redirect('/mail');
   });
 
+  /**
+   * Every address this instance has seen, for completing the entry field.
+   *
+   * There is nothing to withhold here: a mailbox is readable by anyone who can reach
+   * this port, so listing the names costs nothing and saves the operator retyping an
+   * address they invented three scenarios ago.
+   */
+  app.get('/api/mailboxes', (req, reply) => {
+    const q = normaliseAddress(req.query.q ?? '');
+    const all = db.listMailboxes().map((m) => m.address);
+    const matches = q
+      ? all
+          .filter((a) => a.includes(q))
+          // An address starting with what was typed is the better guess, so it leads.
+          .sort((a, b) => Number(b.startsWith(q)) - Number(a.startsWith(q)) || a.localeCompare(b))
+      : all;
+    return reply.send({ addresses: matches.slice(0, 20) });
+  });
+
   app.post('/signout', (req, reply) => {
     reply.clearCookie(ADDR_COOKIE, { path: '/' });
     return reply.redirect('/');
