@@ -207,6 +207,13 @@ attacker-chosen filename never touches a path.
 
 On Windows the default is `%LOCALAPPDATA%\Tinpost`.
 
+You can move it from **Admin ▸ Storage** rather than passing `--data-dir` every time.
+The location is remembered in a small pointer file — `~/.config/tinpost/datadir`, or
+`%APPDATA%\Tinpost\datadir` on Windows — because it cannot be kept in the database
+that lives inside the directory it names. Moving copies nothing: the new location
+starts empty unless it already holds a lab, and the old mail stays where it is. A
+`--data-dir` flag overrides the saved location for that run.
+
 ## Security
 
 This is a lab tool, and it is deliberately open: **there are no passwords anywhere.**

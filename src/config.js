@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { readPointerSync, platformDefaultDataDir } from './datadir.js';
 
 const DEFAULTS = {
   smtpPort: 2525,
@@ -9,14 +10,13 @@ const DEFAULTS = {
   maxSize: 25 * 1024 * 1024,
 };
 
-/** Where the DB and blob store live when the user does not say. */
+/**
+ * Where the DB and blob store live when no flag says otherwise: the location the
+ * admin page last saved, and failing that the platform convention.
+ */
 function defaultDataDir() {
   if (process.env.TINPOST_DATA_DIR) return process.env.TINPOST_DATA_DIR;
-  // Respect the platform convention rather than dropping a dotfile in $HOME on Windows.
-  if (process.platform === 'win32') {
-    return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Tinpost');
-  }
-  return join(homedir(), '.tinpost');
+  return readPointerSync() ?? platformDefaultDataDir();
 }
 
 function intFromEnv(name, fallback) {
@@ -38,6 +38,10 @@ export function loadConfig(flags = {}) {
 
   const cfg = {
     dataDir,
+    // Whether this run's directory came from a flag or the environment, as opposed to
+    // the saved pointer. The admin page needs to know, so it does not offer to change
+    // something this run is overriding anyway.
+    dataDirExplicit: flags.dataDir !== undefined || !!process.env.TINPOST_DATA_DIR,
     dbPath: join(dataDir, 'tinpost.db'),
     blobDir: join(dataDir, 'blobs'),
     tmpDir: join(dataDir, 'tmp'),

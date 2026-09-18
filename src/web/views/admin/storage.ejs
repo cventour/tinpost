@@ -13,9 +13,56 @@
   <div class="stat"><b><%= fmtBytes(usage.bytes) %></b><span><%= usage.count %> stored files</span></div>
 </div>
 
+<h2>Location</h2>
+
+<% if (dataDirOverridden) { %>
+  <p class="warn">
+    This run was started with an explicit data directory, so it is using
+    <code><%= dataDir %></code> whatever is set here. Drop <code>--data-dir</code> (or
+    <code>TINPOST_DATA_DIR</code>) from the start command to let this setting apply.
+  </p>
+<% } else if (savedDataDir && savedDataDir !== dataDir) { %>
+  <p class="warn">
+    <strong>Saved as <code><%= savedDataDir %></code>, but this instance is running from
+    <code><%= dataDir %></code>.</strong>
+    Restart Tinpost to move to the saved location.
+  </p>
+<% } %>
+
+<form method="post" action="/admin/storage/location">
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-datadir">Data directory</label>
+      <p class="setting-hint">
+        Where the database and every stored message live. An absolute path. It is
+        created if it does not exist, and checked as writable before it is saved.
+        Applied the next time Tinpost starts, because the database is open from it.
+        <strong>Nothing is copied</strong> — pointing somewhere new starts an empty lab,
+        and the mail in the old location stays there. Leave it blank to use the default,
+        <code><%= defaultDataDir %></code>.
+      </p>
+    </div>
+    <div class="setting-control">
+      <input type="text" id="f-datadir" name="dataDir" spellcheck="false"
+             placeholder="<%= defaultDataDir %>"
+             value="<%= savedDataDir || '' %>">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="btn">Save location</button>
+    <span class="save-note">Takes effect at the next start.</span>
+  </div>
+</form>
+
 <table class="kv">
-  <tr><th>Data directory</th><td><code><%= dataDir %></code></td></tr>
+  <tr><th>In use now</th><td><code><%= dataDir %></code></td></tr>
+  <tr><th>Remembered in</th><td><code><%= pointerPath %></code></td></tr>
 </table>
+<p class="hint">
+  The location is kept in that small file rather than in the database, because the
+  database lives inside the directory it names.
+</p>
 
 <h2>Maintenance</h2>
 <div class="maint">

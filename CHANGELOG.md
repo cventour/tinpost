@@ -6,6 +6,16 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- New: **the data directory can be set from the Storage page**, instead of only with
+  `--data-dir`. It is created if it does not exist and proven writable before it is
+  saved, so a bad path is refused on the page rather than discovered as a server that
+  will not start. It applies at the next start, because the database is open from it.
+  **Nothing is copied**: pointing somewhere new starts an empty lab and leaves the old
+  mail where it is, and pointing at a directory that already holds a lab uses it as it
+  is. The page says which of the two will happen before you save. Leave the field blank
+  to go back to the default. A `--data-dir` on the command line still wins, and the
+  page says so rather than pretending the field is in charge.
+
 - Fixed: **"Reclaim space" no longer claims to have freed files it could not delete.**
   It counted every attempt as a success, so a file it had no permission to remove was
   reported as reclaimed and the byte total was wrong. It now reports those separately

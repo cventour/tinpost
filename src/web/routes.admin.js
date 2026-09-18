@@ -6,6 +6,15 @@ import {
   pendingRestart,
   checkPortAvailable,
 } from '../settings.js';
+import {
+  checkDataDir,
+  writePointer,
+  readPointer,
+  clearPointer,
+  platformDefaultDataDir,
+  pointerPath,
+  moveNotice,
+} from '../datadir.js';
 
 /**
  * The admin area has no password.
@@ -201,12 +210,63 @@ export async function registerAdminRoutes(app) {
   });
 
   async function storageModel(extra = {}) {
+    const saved = await readPointer();
     return shell('storage', {
       title: 'Storage — Tinpost admin',
       dataDir: config.dataDir,
+      // What the pointer says, which is not necessarily what this run is using.
+      savedDataDir: saved,
+      defaultDataDir: platformDefaultDataDir(),
+      pointerPath: pointerPath(),
+      // A flag or the environment overrides the saved location for this run, and the
+      // page should not pretend the field is in charge when it is not.
+      dataDirOverridden: config.dataDirExplicit,
+      dataDirPending: moveNotice({
+        current: config.dataDir,
+        pending: saved,
+        occupied: true,
+      }),
       ...extra,
     });
   }
+
+  app.post('/admin/storage/location', async (req, reply) => {
+    const wanted = String(req.body?.dataDir ?? '').trim();
+
+    // Clearing the field means "go back to the platform default".
+    if (!wanted) {
+      await clearPointer();
+      logger.info?.('admin: data directory reset to the platform default');
+      return reply.view(
+        'admin/storage',
+        await storageModel({
+          notice: `Reset to the default location. Tinpost will use ${platformDefaultDataDir()} the next time it starts.`,
+        }),
+      );
+    }
+
+    // A bad path here is the one setting that can stop Tinpost from starting at all,
+    // and unlike a port it cannot be fixed from this page afterwards. So it is proven
+    // usable — created if need be, and actually written to — before it is saved.
+    const check = await checkDataDir(wanted);
+    if (!check.ok) {
+      return reply.code(400).view('admin/storage', await storageModel({ error: check.error }));
+    }
+
+    await writePointer(check.path);
+    logger.info?.(`admin: data directory set to ${check.path}`);
+
+    const detail = check.occupied
+      ? 'It already contains a Tinpost database, which will be used as it is.'
+      : 'It is empty, so Tinpost will start with no mail. Nothing has been copied or deleted — the current data stays where it is.';
+
+    return reply.view(
+      'admin/storage',
+      await storageModel({
+        notice: `Saved. Tinpost will use ${check.path} the next time it starts. ${detail}`,
+      }),
+    );
+  });
 
   app.post('/admin/gc', async (req, reply) => {
     const gc = await blobs.gc(db.referencedHashes());
