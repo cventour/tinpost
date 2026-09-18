@@ -25,6 +25,14 @@
   <% }) %>
 
   <h2>Ports</h2>
+<% if (locals.portNotice) { %>
+  <p class="warn">
+    <strong><%= portNotice.headline %></strong>
+    <%= portNotice.detail %>
+  </p>
+<% } else if (locals.privilege && privilege.root) { %>
+  <p class="notice">Running as root, so the standard SMTP port 25 is available.</p>
+<% } %>
 <% if (pending.length) { %>
   <p class="warn">
     <% pending.forEach(function (p) { %>

@@ -16,7 +16,7 @@ import {
  * loopback by default for that reason, and every page says so when it does not.
  */
 export async function registerAdminRoutes(app) {
-  const { db, blobs, config, logger, smtp } = app.mb;
+  const { db, blobs, config, logger, smtp, privilege, portNotice } = app.mb;
 
   // ---------- shared model ----------
 
@@ -62,6 +62,8 @@ export async function registerAdminRoutes(app) {
     const running = runningPorts();
     return shell('smtp', {
       title: 'SMTP — Tinpost admin',
+      portNotice,
+      privilege,
       specs: SMTP_SETTINGS,
       values: readAllDisplay(db),
       pending: pendingRestart(db, running),

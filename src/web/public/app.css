@@ -507,3 +507,7 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
 .combo-option:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .combo-option[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .combo-hint { margin: 10px 0 0; }
+
+/* The port warning carries a headline and a remedy; the headline leads. */
+.port-warn { margin-top: 18px; }
+.port-warn strong { display: block; margin-bottom: 2px; }

@@ -110,7 +110,7 @@ try {
   process.exit(1);
 }
 
-const { config, ports } = instance;
+const { config, ports, portNotice, privilege } = instance;
 const displayHost = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
 
 console.log(`
@@ -118,7 +118,7 @@ console.log(`
 
   Webmail   http://${displayHost}:${ports.http}
   Admin     http://${displayHost}:${ports.http}/admin   (no password)
-  SMTP      ${config.host}:${ports.smtp}   (no AUTH, no TLS)
+  SMTP      ${config.host}:${ports.smtp}${ports.smtp === 25 ? '      ' : '   '}(no AUTH, no TLS)
   Data      ${config.dataDir}
 `);
 
@@ -128,6 +128,13 @@ if (config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !=
       `  anyone who can reach this host can read every mailbox, change these settings and\n` +
       `  delete all mail. Only do this on an isolated lab network.\n`,
   );
+}
+
+if (portNotice) {
+  console.log(`  ${portNotice.headline}`);
+  console.log(`  ${portNotice.detail}\n`);
+} else if (privilege?.root) {
+  console.log('  Running as root, so the standard SMTP port 25 is in use.\n');
 }
 
 console.log('  Press Ctrl+C to stop.\n');

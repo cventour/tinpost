@@ -166,11 +166,27 @@ limits apply to the next connection; the ports apply at the next start, because 
 listening port cannot move without dropping the page you are on. A port given on the
 command line overrides what is saved.
 
-Port 25 needs root on macOS and Linux. If you want the standard port:
+### Port 25
 
-```bash
-sudo tinpost serve --smtp-port 25
-```
+Tinpost uses the standard SMTP port when it can, and says so when it cannot.
+
+- **Run as root** and it listens on **25** with no flag needed, because running as root
+  is taken as intent to be a real mail server:
+
+  ```bash
+  sudo tinpost serve
+  ```
+
+- **Run as an ordinary user** on macOS or Linux and port 25 is reserved by the system,
+  so it falls back to **2525** and carries a warning on the entry page and in the log
+  explaining why and how to change it. It never refuses to start over this.
+
+- **On Windows** low ports are not reserved, so it takes 25 without elevation. If 25 is
+  unavailable there it is because another program holds it, and the warning says that
+  instead.
+
+A port you choose yourself — by flag, or on the admin page — always wins over this, and
+is never warned about.
 
 ## Where the data goes
 

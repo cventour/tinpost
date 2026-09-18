@@ -6,7 +6,7 @@ const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function registerMailRoutes(app) {
-  const { db, blobs, delivery, config } = app.mb;
+  const { db, blobs, delivery, config, portNotice } = app.mb;
 
   /**
    * The address in the cookie. Identity, not authentication — by design.
@@ -34,7 +34,14 @@ export async function registerMailRoutes(app) {
   app.get('/', (req, reply) => {
     const addr = addrOf(req);
     if (addr && req.query.switch === undefined) return reply.redirect('/mail');
-    return reply.view('login', { addr, error: null, policy: db.getAcceptPolicy(), domains: db.listDomains() });
+    return reply.view('login', {
+      addr,
+      error: null,
+      policy: db.getAcceptPolicy(),
+      domains: db.listDomains(),
+      portNotice,
+      smtpPort: config.smtpPort,
+    });
   });
 
   app.post('/', (req, reply) => {
@@ -45,6 +52,8 @@ export async function registerMailRoutes(app) {
         error: 'That does not look like an email address.',
         policy: db.getAcceptPolicy(),
         domains: db.listDomains(),
+        portNotice,
+        smtpPort: config.smtpPort,
       });
     }
     reply.setCookie(ADDR_COOKIE, addr, {

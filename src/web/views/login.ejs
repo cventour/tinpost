@@ -27,6 +27,14 @@
 
   <% if (error) { %><p class="error"><%= error %></p><% } %>
 
+  <% if (locals.portNotice) { %>
+    <p class="warn port-warn">
+      <strong><%= portNotice.headline %></strong>
+      <%= portNotice.detail %>
+      Point senders at <code>127.0.0.1:<%= smtpPort %></code>.
+    </p>
+  <% } %>
+
   <div class="policy-note">
     <% if (policy === 'any') { %>
       Accepting mail for <strong>any domain</strong>.

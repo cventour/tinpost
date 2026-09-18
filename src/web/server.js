@@ -12,7 +12,16 @@ import { registerAdminRoutes } from './routes.admin.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export async function createWebServer({ db, blobs, delivery, config, smtp = null, logger = console }) {
+export async function createWebServer({
+  db,
+  blobs,
+  delivery,
+  config,
+  smtp = null,
+  privilege = null,
+  portNotice = null,
+  logger = console,
+}) {
   const app = Fastify({ logger: false, bodyLimit: config.maxSize });
 
   await app.register(fastifyCookie, { secret: db.getSetting('session_secret') });
@@ -27,7 +36,7 @@ export async function createWebServer({ db, blobs, delivery, config, smtp = null
     defaultContext: { fmtBytes, fmtDate, escapeHtml },
   });
 
-  app.decorate('mb', { db, blobs, delivery, config, smtp, logger });
+  app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger });
 
   // Two static assets only. Serving them as explicit routes rather than pulling in
   // a static-file plugin keeps the path-traversal surface at exactly zero.

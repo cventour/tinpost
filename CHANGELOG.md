@@ -6,6 +6,15 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- New: **Tinpost takes the standard SMTP port 25 when it is allowed to.** Started as
+  root, it listens on 25 with no flag — running as root is read as intent to be a real
+  mail server. Started as an ordinary user on macOS or Linux, where 25 is reserved, it
+  falls back to 2525 and says so on the entry page, on the admin page and in the log:
+  what port it is on, that it is not root, and that `sudo` is the fix. It never refuses
+  to start over this. On Windows low ports are not reserved, so it takes 25 without
+  elevation, and if it cannot the warning names the real cause rather than blaming
+  privileges. A port you set yourself still wins and is never warned about.
+
 - Changed: the wordmark now reads **Tin·post** and sits about a third larger in the
   top bar. The dot is decoration only — the product is still called Tinpost, and that
   is what a screen reader announces and what you get if you copy it.
