@@ -29,7 +29,7 @@
   <p class="warn">
     <% pending.forEach(function (p) { %>
       <%= p.label %> is saved as <code><%= p.saved %></code> but this process is running on
-      <code><%= p.running %></code>. Restart MailButler to move it.
+      <code><%= p.running %></code>. Restart Tinpost to move it.
     <% }) %>
   </p>
 <% } %>
@@ -75,7 +75,7 @@
   <tr><th>Data directory</th><td><code><%= listeners.dataDir %></code></td></tr>
 </table>
 <p class="hint">
-  The bind address is set at start time: <code>mailbutler serve --host 0.0.0.0</code>.
+  The bind address is set at start time: <code>tinpost serve --host 0.0.0.0</code>.
   A port given on the command line overrides what is saved here.
 </p>
 

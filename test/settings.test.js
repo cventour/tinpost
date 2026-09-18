@@ -27,8 +27,8 @@ const BASE = {
   smtp_max_clients: 50,
   smtp_max_recipients: 100,
   smtp_socket_timeout: 60,
-  smtp_name: 'mailbutler',
-  smtp_banner: 'MailButler lab mail server',
+  smtp_name: 'tinpost',
+  smtp_banner: 'Tinpost lab mail server',
 };
 
 /**
@@ -77,7 +77,7 @@ test('an unset setting reads as its default', async (t) => {
   assert.equal(readDisplayValue(lab.db, 'smtp_max_clients'), 50);
   assert.equal(readSetting(lab.db, 'smtp_max_size'), 25 * 1024 * 1024, 'MB are stored as bytes');
   assert.equal(readSetting(lab.db, 'smtp_socket_timeout'), 60_000, 'seconds are stored as milliseconds');
-  assert.equal(readSetting(lab.db, 'smtp_name'), 'mailbutler');
+  assert.equal(readSetting(lab.db, 'smtp_name'), 'tinpost');
 });
 
 test('a corrupt or out-of-range stored value falls back rather than breaking the server', async (t) => {
@@ -273,7 +273,7 @@ test('a free port saves, and is reported as waiting for a restart', async (t) =>
   });
 
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /applies the next time MailButler starts/);
+  assert.match(res.body, /applies the next time Tinpost starts/);
   assert.equal(readDisplayValue(lab.db, 'http_port'), free);
 
   const pending = pendingRestart(lab.db, { http_port: lab.ports.http, smtp_port: lab.ports.smtp });
@@ -281,7 +281,7 @@ test('a free port saves, and is reported as waiting for a restart', async (t) =>
   assert.equal(pending[0].key, 'http_port');
 });
 
-test('a port a MailButler listener already holds is not treated as taken', async () => {
+test('a port a Tinpost listener already holds is not treated as taken', async () => {
   const server = net.createServer();
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const mine = server.address().port;

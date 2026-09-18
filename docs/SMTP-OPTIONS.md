@@ -1,6 +1,6 @@
 # SMTP listener: configuration capabilities
 
-What `smtp-server` 3.19 exposes, what MailButler sets today, and what is worth
+What `smtp-server` 3.19 exposes, what Tinpost sets today, and what is worth
 putting on the admin page. Priorities here are scalability, protection against
 abuse, and not letting a single oversized or hostile sender take the instance down.
 
@@ -13,7 +13,7 @@ declared sizes in `MAIL FROM:<addr> SIZE=nnn` are checked, "but the actual trans
 size is not enforced by the server itself". The stream sets `sizeExceeded = true` and
 keeps going to the terminating dot.
 
-Measured on MailButler with a 1 MB limit, a client that ignores the advertised SIZE:
+Measured on Tinpost with a 1 MB limit, a client that ignores the advertised SIZE:
 
 | | Result |
 |---|---|
@@ -45,7 +45,7 @@ Every option the library accepts, grouped by what it is for.
 | `socketTimeout` | 60 s | Idle time before a connection is dropped. |
 | `closeTimeout` | 30 s | How long `close()` waits for connections still in flight. |
 | `maxCommandLength` | 4096 bytes | Longest single protocol line before the connection is torn down. Bounds memory for a client that sends a line and never a newline. |
-| `maxAllowedUnauthenticatedCommands` | 10 | Commands allowed before authentication. **Inert when `authOptional` is set**, which is MailButler's case, so it offers nothing here. |
+| `maxAllowedUnauthenticatedCommands` | 10 | Commands allowed before authentication. **Inert when `authOptional` is set**, which is Tinpost's case, so it offers nothing here. |
 
 ### Protocol and identity
 
@@ -84,14 +84,14 @@ Every option the library accepts, grouped by what it is for.
 
 ### Handlers
 
-`onConnect`, `onAuth`, `onMailFrom`, `onRcptTo`, `onData`, `onClose`. MailButler uses
+`onConnect`, `onAuth`, `onMailFrom`, `onRcptTo`, `onData`, `onClose`. Tinpost uses
 `onRcptTo` for the domain policy and `onData` for storage.
 
-## What MailButler sets today
+## What Tinpost sets today
 
 ```js
-name: 'mailbutler',
-banner: 'MailButler lab mail server',
+name: 'tinpost',
+banner: 'Tinpost lab mail server',
 authOptional: true,
 disabledCommands: ['AUTH', 'STARTTLS'],   // anonymous submission, by design
 size: config.maxSize,                      // 25 MB default
@@ -125,7 +125,7 @@ already answers `421` over the cap, which is the correct and realistic refusal.
 
 Already a CLI flag; it belongs on the page too, because it is the setting an operator
 most often needs to change and restarting to change it is friction. Expose it in MB
-with a sane floor, and state plainly that it is enforced by MailButler rather than
+with a sane floor, and state plainly that it is enforced by Tinpost rather than
 merely advertised.
 
 ### 4. Idle connection timeout — `socketTimeout`
@@ -144,7 +144,7 @@ recipients`, which is the standard response.
 ### 6. Server name and banner — `name`, `banner`
 
 Not protection, but the reason a scenario feels real: a phishing exercise reads better
-when the server announces itself as `mail.corp.test` rather than `mailbutler`. Cheap
+when the server announces itself as `mail.corp.test` rather than `tinpost`. Cheap
 to expose, and it changes what a participant sees in the headers.
 
 ### Deliberately not recommended
@@ -152,7 +152,7 @@ to expose, and it changes what a participant sees in the headers.
 - **`hideSize: true`** — it removes the `MAIL FROM SIZE=` check, which is the one
   limit the library enforces for us. It would make things worse.
 - **`maxAllowedUnauthenticatedCommands`** — inert while `authOptional` is set.
-- **`allowInsecureAuth`, `authMethods`, TLS options** — MailButler disables AUTH and
+- **`allowInsecureAuth`, `authMethods`, TLS options** — Tinpost disables AUTH and
   STARTTLS on purpose. Adding authentication is a product decision, not a setting.
 - **`useProxy` / `useXClient` / `useXForward`** — only meaningful behind a real proxy,
   and each one lets a client assert its own address. Not for a loopback lab tool.

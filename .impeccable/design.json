@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-09-18T00:00:00Z",
-  "title": "Design System: MailButler",
+  "title": "Design System: Tinpost",
   "extensions": {
     "colorMeta": {
       "bg": { "role": "neutral", "displayName": "Field", "canonical": "#f6f7f9", "darkValue": "#14171c", "tonalRamp": ["#14171c", "#1b1f26", "#2c323b", "#5b6572", "#99a3b0", "#dfe3e8", "#f0f2f5", "#f6f7f9"] },
@@ -136,7 +136,7 @@
   ],
   "narrative": {
     "northStar": "The House Utility",
-    "overview": "MailButler looks like something that came with the operating system. It is a lab instrument — a mail server you point a phishing simulation or an app's signup flow at, and a webmail UI where you type any address and read that mailbox. Nothing it shows is precious; everything it shows is evidence. So the interface spends no attention on itself: one system font stack, one accent, flat panels on a faintly tinted field, and enough border to tell surfaces apart without drawing them.\n\nBoth surfaces are task surfaces. Reading mail wants scanning speed and native expectations (rows, folders, an unread weight). Configuring an instance is done rarely, so every control carries a written label and a hint sentence rather than relying on remembered icon positions. The density is moderate: rows at 11px vertical padding, panels at 24px, settings sections at 26/30/30 — tight enough to see a screenful, loose enough not to misclick.\n\nThe colour work is entirely tonal. A light theme and a dark theme are declared from the same token block and the whole interface — including the browser's own selection, placeholder, focus ring and scrollbar surfaces — is repainted from those tokens, so nothing inherits a stray default and gives away that this is a web page rather than a client.",
+    "overview": "Tinpost looks like something that came with the operating system. It is a lab instrument — a mail server you point a phishing simulation or an app's signup flow at, and a webmail UI where you type any address and read that mailbox. Nothing it shows is precious; everything it shows is evidence. So the interface spends no attention on itself: one system font stack, one accent, flat panels on a faintly tinted field, and enough border to tell surfaces apart without drawing them.\n\nBoth surfaces are task surfaces. Reading mail wants scanning speed and native expectations (rows, folders, an unread weight). Configuring an instance is done rarely, so every control carries a written label and a hint sentence rather than relying on remembered icon positions. The density is moderate: rows at 11px vertical padding, panels at 24px, settings sections at 26/30/30 — tight enough to see a screenful, loose enough not to misclick.\n\nThe colour work is entirely tonal. A light theme and a dark theme are declared from the same token block and the whole interface — including the browser's own selection, placeholder, focus ring and scrollbar surfaces — is repainted from those tokens, so nothing inherits a stray default and gives away that this is a web page rather than a client.",
     "keyCharacteristics": [
       "System UI font everywhere; monospace reserved for machine text (addresses, MIME types, source, composed bodies).",
       "One accent (--accent) for links, focus, primary action and counts; everything else is ink, dim ink and line.",

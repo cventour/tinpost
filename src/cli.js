@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 
-// node:sqlite is what lets MailButler avoid a compiled dependency. If it is
+// node:sqlite is what lets Tinpost avoid a compiled dependency. If it is
 // missing the user is on an older Node, and a stack trace would not explain that.
 try {
   await import('node:sqlite');
 } catch {
   console.error(
-    `MailButler needs Node 22.5 or newer (Node 24 LTS recommended) for its built-in SQLite support.\n` +
+    `Tinpost needs Node 22.5 or newer (Node 24 LTS recommended) for its built-in SQLite support.\n` +
       `You are running ${process.version}. Install a newer Node and try again.`,
   );
   process.exit(1);
@@ -15,10 +15,10 @@ try {
 
 const { start } = await import('./index.js');
 
-const USAGE = `MailButler — a self-contained lab mail server with webmail.
+const USAGE = `Tinpost — a self-contained lab mail server with webmail.
 
 Usage:
-  mailbutler serve [options]
+  tinpost serve [options]
 
 Options:
   --smtp-port <n>        SMTP listen port (default 2525; port 25 needs root on Unix)
@@ -114,7 +114,7 @@ const { config, ports } = instance;
 const displayHost = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
 
 console.log(`
-  MailButler is running.
+  Tinpost is running.
 
   Webmail   http://${displayHost}:${ports.http}
   Admin     http://${displayHost}:${ports.http}/admin   (no password)
@@ -124,7 +124,7 @@ console.log(`
 
 if (config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !== '::1') {
   console.log(
-    `  Warning: bound to ${config.host}, not loopback. MailButler has no passwords at all:\n` +
+    `  Warning: bound to ${config.host}, not loopback. Tinpost has no passwords at all:\n` +
       `  anyone who can reach this host can read every mailbox, change these settings and\n` +
       `  delete all mail. Only do this on an isolated lab network.\n`,
   );

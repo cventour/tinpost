@@ -8,7 +8,7 @@ import { Delivery } from '../src/delivery.js';
 
 /** A throwaway instance on its own temp data dir, for one test. */
 export async function makeLab(overrides = {}) {
-  const dataDir = await mkdtemp(join(tmpdir(), 'mailbutler-test-'));
+  const dataDir = await mkdtemp(join(tmpdir(), 'tinpost-test-'));
   const config = loadConfig({ dataDir, smtpPort: 0, httpPort: 0, ...overrides });
   const db = new Db(config.dbPath);
 

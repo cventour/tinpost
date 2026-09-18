@@ -1,6 +1,6 @@
 # Versioning and releases
 
-MailButler follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
+Tinpost follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 It is at **0.1.0** and stays in the `0.x` series until Christos says it is 1.0.
 
 ## What each number means
@@ -58,7 +58,7 @@ release, and a tag that is not on `main` does not exist.
 
 ## Writing the changelog
 
-`CHANGELOG.md` is for the person running MailButler, not for whoever wrote the code.
+`CHANGELOG.md` is for the person running Tinpost, not for whoever wrote the code.
 It says what changed for them and, when something was broken, what it looked like
 from their side. Every entry begins **New**, **Changed**, **Fixed** or **Removed**.
 

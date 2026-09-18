@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
-<title><%= typeof title !== 'undefined' ? title : 'MailButler' %></title>
+<title><%= typeof title !== 'undefined' ? title : 'Tinpost' %></title>
 <link rel="stylesheet" href="/static/app.css">
 <%# Drawn, not a font glyph: a text-based favicon renders differently on every platform. %>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232b5fd9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='2.5' y='5' width='19' height='14' rx='2'/><path d='M3 7l8.1 5.4a1.6 1.6 0 0 0 1.8 0L21 7'/></svg>">
@@ -20,7 +20,7 @@
 <body>
 <%- include('icons') %>
 <header class="topbar">
-  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Mail<span>Butler</span></a>
+  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span>post</span></a>
   <nav>
     <% if (locals.addr) { %>
       <a class="nav-link" href="/compose">Compose</a>

@@ -1,4 +1,4 @@
-# MailButler
+# Tinpost
 
 A self-contained mail server for lab environments. It listens on SMTP, accepts mail
 for any domain you point at it, and shows every mailbox in a webmail UI that anyone
@@ -26,7 +26,7 @@ Windows.
 ## Quick start
 
 ```bash
-npx mailbutler serve
+npx tinpost serve
 ```
 
 That prints the URLs:
@@ -35,7 +35,7 @@ That prints the URLs:
   Webmail   http://127.0.0.1:8025
   Admin     http://127.0.0.1:8025/admin   (no password)
   SMTP      127.0.0.1:2525   (no AUTH, no TLS)
-  Data      /home/you/.mailbutler
+  Data      /home/you/.tinpost
 ```
 
 Open the webmail URL, type any address — `alice@lab.local` will do — and you are in
@@ -148,7 +148,7 @@ From there you can:
 ## Options
 
 ```
-mailbutler serve [options]
+tinpost serve [options]
 
   --smtp-port <n>        SMTP listen port (default 2525)
   --http-port <n>        Web listen port (default 8025)
@@ -157,9 +157,9 @@ mailbutler serve [options]
   --max-size <bytes>     Largest accepted message (default 25 MB)
 ```
 
-Each has an environment-variable equivalent: `MAILBUTLER_SMTP_PORT`,
-`MAILBUTLER_HTTP_PORT`, `MAILBUTLER_HOST`, `MAILBUTLER_DATA_DIR`,
-`MAILBUTLER_MAX_SIZE`.
+Each has an environment-variable equivalent: `TINPOST_SMTP_PORT`,
+`TINPOST_HTTP_PORT`, `TINPOST_HOST`, `TINPOST_DATA_DIR`,
+`TINPOST_MAX_SIZE`.
 
 The limits, the server name and the ports can also be set from the admin page. The
 limits apply to the next connection; the ports apply at the next start, because a
@@ -169,7 +169,7 @@ command line overrides what is saved.
 Port 25 needs root on macOS and Linux. If you want the standard port:
 
 ```bash
-sudo mailbutler serve --smtp-port 25
+sudo tinpost serve --smtp-port 25
 ```
 
 ## Where the data goes
@@ -177,8 +177,8 @@ sudo mailbutler serve --smtp-port 25
 The data directory holds a small SQLite file and a `blobs/` directory:
 
 ```
-~/.mailbutler/
-  mailbutler.db     index only: who sent what, to whom, when
+~/.tinpost/
+  tinpost.db     index only: who sent what, to whom, when
   blobs/            the actual bytes: raw messages, HTML parts, attachments
 ```
 
@@ -189,7 +189,7 @@ you back up or wipe the store with ordinary file tools. Files are named by the S
 of their content, so the same attachment sent to ten mailboxes is stored once, and an
 attacker-chosen filename never touches a path.
 
-On Windows the default is `%LOCALAPPDATA%\MailButler`.
+On Windows the default is `%LOCALAPPDATA%\Tinpost`.
 
 ## Security
 
@@ -221,7 +221,7 @@ npm start         # runs the server from source
 
 ## Versioning
 
-MailButler follows Semantic Versioning and is in the `0.x` series. See
+Tinpost follows Semantic Versioning and is in the `0.x` series. See
 [VERSIONING.md](VERSIONING.md) for what each number means and how a release is cut,
 and [CHANGELOG.md](CHANGELOG.md) for what has changed.
 

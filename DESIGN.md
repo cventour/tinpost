@@ -1,5 +1,5 @@
 ---
-name: MailButler
+name: Tinpost
 description: A quiet, native-feeling lab mail client that gets out of the way of the mail.
 colors:
   bg: "#f6f7f9"
@@ -160,13 +160,13 @@ components:
     padding: "0"
 ---
 
-# Design System: MailButler
+# Design System: Tinpost
 
 ## Overview
 
 **Creative North Star: "The House Utility"**
 
-MailButler looks like something that came with the operating system. It is a lab
+Tinpost looks like something that came with the operating system. It is a lab
 instrument — a mail server you point a phishing simulation or an app's signup flow
 at, and a webmail UI where you type any address and read that mailbox. Nothing it
 shows is precious; everything it shows is evidence. So the interface spends no

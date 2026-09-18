@@ -1,4 +1,4 @@
-/* MailButler client. Two small jobs: keep the inbox live, and size the HTML iframe. */
+/* Tinpost client. Two small jobs: keep the inbox live, and size the HTML iframe. */
 (function () {
   'use strict';
 

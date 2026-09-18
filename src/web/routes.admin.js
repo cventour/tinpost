@@ -10,7 +10,7 @@ import {
 /**
  * The admin area has no password.
  *
- * MailButler is a lab tool: the mailboxes themselves are deliberately readable by
+ * Tinpost is a lab tool: the mailboxes themselves are deliberately readable by
  * anyone who can reach the web port, so a gate on the settings alongside them would
  * protect nothing an attacker on that network could not already reach. It binds to
  * loopback by default for that reason, and every page says so when it does not.
@@ -61,7 +61,7 @@ export async function registerAdminRoutes(app) {
   async function smtpModel(extra = {}) {
     const running = runningPorts();
     return shell('smtp', {
-      title: 'SMTP — MailButler admin',
+      title: 'SMTP — Tinpost admin',
       specs: SMTP_SETTINGS,
       values: readAllDisplay(db),
       pending: pendingRestart(db, running),
@@ -79,7 +79,7 @@ export async function registerAdminRoutes(app) {
 
     const body = req.body ?? {};
 
-    // A port is the one setting that can stop MailButler from starting at all, so it
+    // A port is the one setting that can stop Tinpost from starting at all, so it
     // is checked before being written rather than discovered at the next start.
     const running = runningPorts();
     for (const key of ['http_port', 'smtp_port']) {
@@ -109,7 +109,7 @@ export async function registerAdminRoutes(app) {
 
     const stillPending = pendingRestart(db, runningPorts());
     const notice = stillPending.length
-      ? 'Saved. The limits are live now; the port change applies the next time MailButler starts.'
+      ? 'Saved. The limits are live now; the port change applies the next time Tinpost starts.'
       : 'Saved. The listener picked these up straight away.';
     return reply.view('admin/smtp', await smtpModel({ notice }));
   });
@@ -122,7 +122,7 @@ export async function registerAdminRoutes(app) {
 
   async function domainsModel(extra = {}) {
     return shell('domains', {
-      title: 'Domains — MailButler admin',
+      title: 'Domains — Tinpost admin',
       policy: db.getAcceptPolicy(),
       domains: db.listDomains(),
       ...extra,
@@ -171,7 +171,7 @@ export async function registerAdminRoutes(app) {
 
   async function mailboxesModel(extra = {}) {
     return shell('mailboxes', {
-      title: 'Mailboxes — MailButler admin',
+      title: 'Mailboxes — Tinpost admin',
       mailboxes: db.listMailboxes(),
       ...extra,
     });
@@ -198,7 +198,7 @@ export async function registerAdminRoutes(app) {
 
   async function storageModel(extra = {}) {
     return shell('storage', {
-      title: 'Storage — MailButler admin',
+      title: 'Storage — Tinpost admin',
       dataDir: config.dataDir,
       ...extra,
     });

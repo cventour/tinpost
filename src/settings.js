@@ -50,7 +50,7 @@ export const SMTP_SETTINGS = {
   },
   http_port: {
     label: 'Web interface port',
-    hint: 'Where the webmail and this admin page listen. Applied the next time MailButler starts, because a listening port cannot be moved without dropping the page you are reading.',
+    hint: 'Where the webmail and this admin page listen. Applied the next time Tinpost starts, because a listening port cannot be moved without dropping the page you are reading.',
     type: 'port',
     default: 8025,
     min: 1,
@@ -70,14 +70,14 @@ export const SMTP_SETTINGS = {
     label: 'Server name',
     hint: 'What the server calls itself in greetings and in Received headers. A scenario reads better when this matches the domain it is pretending to be.',
     type: 'hostname',
-    default: 'mailbutler',
+    default: 'tinpost',
     maxLength: 253,
   },
   smtp_banner: {
     label: 'Greeting banner',
     hint: 'Extra text on the 220 greeting line, which is the first thing a connecting client sees.',
     type: 'line',
-    default: 'MailButler lab mail server',
+    default: 'Tinpost lab mail server',
     maxLength: 120,
   },
 };
@@ -206,14 +206,14 @@ export { normaliseAddress };
 /**
  * Can this process actually bind that port on that host?
  *
- * A port is the one setting that can stop MailButler from starting at all, so it is
+ * A port is the one setting that can stop Tinpost from starting at all, so it is
  * checked before being saved rather than discovered at the next start. Two failures
  * are worth naming precisely: the port is taken, and the port needs privileges we do
  * not have.
  */
 export async function checkPortAvailable(port, host, { ignorePorts = [] } = {}) {
   // A port this process already holds will be free by the time it restarts.
-  if (ignorePorts.includes(port)) return { ok: true, note: 'in use by MailButler itself' };
+  if (ignorePorts.includes(port)) return { ok: true, note: 'in use by Tinpost itself' };
 
   const net = await import('node:net');
   return new Promise((resolve) => {
@@ -230,7 +230,7 @@ export async function checkPortAvailable(port, host, { ignorePorts = [] } = {}) 
       if (err.code === 'EACCES') {
         return resolve({
           ok: false,
-          error: `Port ${port} needs root privileges on this system. Ports below 1024 are reserved; start MailButler with sudo if you need one.`,
+          error: `Port ${port} needs root privileges on this system. Ports below 1024 are reserved; start Tinpost with sudo if you need one.`,
         });
       }
       return resolve({ ok: false, error: `Port ${port} cannot be used: ${err.code || err.message}.` });

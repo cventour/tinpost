@@ -11,12 +11,12 @@ const DEFAULTS = {
 
 /** Where the DB and blob store live when the user does not say. */
 function defaultDataDir() {
-  if (process.env.MAILBUTLER_DATA_DIR) return process.env.MAILBUTLER_DATA_DIR;
+  if (process.env.TINPOST_DATA_DIR) return process.env.TINPOST_DATA_DIR;
   // Respect the platform convention rather than dropping a dotfile in $HOME on Windows.
   if (process.platform === 'win32') {
-    return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'MailButler');
+    return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Tinpost');
   }
-  return join(homedir(), '.mailbutler');
+  return join(homedir(), '.tinpost');
 }
 
 function intFromEnv(name, fallback) {
@@ -38,20 +38,20 @@ export function loadConfig(flags = {}) {
 
   const cfg = {
     dataDir,
-    dbPath: join(dataDir, 'mailbutler.db'),
+    dbPath: join(dataDir, 'tinpost.db'),
     blobDir: join(dataDir, 'blobs'),
     tmpDir: join(dataDir, 'tmp'),
-    smtpPort: flags.smtpPort ?? intFromEnv('MAILBUTLER_SMTP_PORT', DEFAULTS.smtpPort),
-    httpPort: flags.httpPort ?? intFromEnv('MAILBUTLER_HTTP_PORT', DEFAULTS.httpPort),
+    smtpPort: flags.smtpPort ?? intFromEnv('TINPOST_SMTP_PORT', DEFAULTS.smtpPort),
+    httpPort: flags.httpPort ?? intFromEnv('TINPOST_HTTP_PORT', DEFAULTS.httpPort),
     // A port given on the command line outranks the stored setting; without one, the
     // setting the admin page wrote is used.
-    smtpPortExplicit: flags.smtpPort !== undefined || !!process.env.MAILBUTLER_SMTP_PORT,
-    httpPortExplicit: flags.httpPort !== undefined || !!process.env.MAILBUTLER_HTTP_PORT,
-    host: flags.host || process.env.MAILBUTLER_HOST || DEFAULTS.host,
-    maxSize: flags.maxSize ?? intFromEnv('MAILBUTLER_MAX_SIZE', DEFAULTS.maxSize),
+    smtpPortExplicit: flags.smtpPort !== undefined || !!process.env.TINPOST_SMTP_PORT,
+    httpPortExplicit: flags.httpPort !== undefined || !!process.env.TINPOST_HTTP_PORT,
+    host: flags.host || process.env.TINPOST_HOST || DEFAULTS.host,
+    maxSize: flags.maxSize ?? intFromEnv('TINPOST_MAX_SIZE', DEFAULTS.maxSize),
     // Whether a size was actually asked for, as opposed to defaulted. An explicit
     // one is an instruction and seeds the stored setting the admin page edits.
-    maxSizeExplicit: flags.maxSize !== undefined || !!process.env.MAILBUTLER_MAX_SIZE,
+    maxSizeExplicit: flags.maxSize !== undefined || !!process.env.TINPOST_MAX_SIZE,
   };
 
   mkdirSync(cfg.dataDir, { recursive: true });
