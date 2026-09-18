@@ -22,23 +22,44 @@ export async function registerAdminRoutes(app) {
     const sig = Buffer.from(token.slice(idx + 1), 'hex');
     const expected = createHmac('sha256', secret).update(payload).digest();
     if (sig.length !== expected.length || !timingSafeEqual(sig, expected)) return false;
+
     const issuedAt = Number.parseInt(payload.split('.')[0], 10);
-    return Number.isFinite(issuedAt) && Date.now() - issuedAt < SESSION_TTL_MS;
+    if (!Number.isFinite(issuedAt) || Date.now() - issuedAt >= SESSION_TTL_MS) return false;
+
+    // Changing the password moves the epoch forward, which retires every token
+    // issued before it. Rotating the signing secret would not do this, because it
+    // is read once when the server starts.
+    return issuedAt >= sessionEpoch();
+  }
+
+  function sessionEpoch() {
+    return Number.parseInt(db.getSetting('session_epoch') ?? '0', 10) || 0;
   }
 
   function isAdmin(req) {
     return validSession(req.cookies?.[SESSION_COOKIE]);
   }
 
-  /** Guard for every mutating admin route. */
-  function requireAdmin(req, reply) {
-    if (isAdmin(req)) {
-      // Sliding expiry: an admin actively working does not get logged out mid-task.
-      reply.setCookie(SESSION_COOKIE, issueSession(), cookieOpts());
-      return true;
+  /**
+   * Guard for every admin route.
+   *
+   * While the first-start password is still in use, every route but the change
+   * form is diverted to it: the temporary password gets the operator in, and
+   * nothing else until they have replaced it.
+   */
+  function requireAdmin(req, reply, { allowWhileTemporary = false } = {}) {
+    if (!isAdmin(req)) {
+      reply.redirect('/admin/login');
+      return false;
     }
-    reply.redirect('/admin/login');
-    return false;
+    // Sliding expiry: an admin actively working does not get logged out mid-task.
+    reply.setCookie(SESSION_COOKIE, issueSession(), cookieOpts());
+
+    if (!allowWhileTemporary && db.adminPasswordMustChange()) {
+      reply.redirect('/admin/password');
+      return false;
+    }
+    return true;
   }
 
   function cookieOpts() {
@@ -49,22 +70,72 @@ export async function registerAdminRoutes(app) {
 
   app.get('/admin/login', (req, reply) => {
     if (isAdmin(req)) return reply.redirect('/admin');
-    return reply.view('admin-login', { error: null, addr: null });
+    return reply.view('admin-login', {
+      error: null,
+      addr: null,
+      firstRun: db.adminPasswordMustChange(),
+    });
   });
 
   app.post('/admin/login', (req, reply) => {
     const password = String(req.body?.password ?? '');
     if (!db.verifyAdminPassword(password)) {
       logger.info?.('admin: failed login');
-      return reply.code(401).view('admin-login', { error: 'Incorrect password.', addr: null });
+      return reply.code(401).view('admin-login', {
+        error: 'Incorrect password.',
+        addr: null,
+        firstRun: db.adminPasswordMustChange(),
+      });
     }
     reply.setCookie(SESSION_COOKIE, issueSession(), cookieOpts());
-    return reply.redirect('/admin');
+    return reply.redirect(db.adminPasswordMustChange() ? '/admin/password' : '/admin');
   });
 
   app.post('/admin/logout', (req, reply) => {
     reply.clearCookie(SESSION_COOKIE, { path: '/admin' });
     return reply.redirect('/admin/login');
+  });
+
+  // ---------- change password ----------
+
+  app.get('/admin/password', (req, reply) => {
+    if (!requireAdmin(req, reply, { allowWhileTemporary: true })) return reply;
+    return reply.view('admin-password', {
+      addr: null,
+      error: null,
+      mustChange: db.adminPasswordMustChange(),
+    });
+  });
+
+  app.post('/admin/password', (req, reply) => {
+    if (!requireAdmin(req, reply, { allowWhileTemporary: true })) return reply;
+
+    const current = String(req.body?.current ?? '');
+    const next = String(req.body?.next ?? '');
+    const confirm = String(req.body?.confirm ?? '');
+    const mustChange = db.adminPasswordMustChange();
+
+    const fail = (error) =>
+      reply.code(400).view('admin-password', { addr: null, error, mustChange });
+
+    // Knowing the current password is required even here: a session cookie alone
+    // must not be enough to take over the instance.
+    if (!db.verifyAdminPassword(current)) return fail('That is not the current password.');
+    if (next.length < 8) return fail('The new password must be at least 8 characters.');
+    if (next !== confirm) return fail('The two new passwords do not match.');
+    if (next === current) return fail('The new password must be different from the current one.');
+
+    db.setAdminPassword(next);
+    // A password change retires every session issued so far, including this one.
+    db.setSetting('session_epoch', String(Date.now()));
+    logger.info?.('admin: password changed; existing sessions invalidated');
+    reply.clearCookie(SESSION_COOKIE, { path: '/admin' });
+    return reply.view('admin-login', {
+      addr: null,
+      error: null,
+      firstRun: false,
+      notice: 'Password changed. Sign in with your new password.',
+    });
   });
 
   // ---------- dashboard ----------
@@ -92,6 +163,7 @@ export async function registerAdminRoutes(app) {
         maxSize: config.maxSize,
       },
       exposed: config.host !== '127.0.0.1' && config.host !== 'localhost',
+      mustChange: db.adminPasswordMustChange(),
     };
   }
 

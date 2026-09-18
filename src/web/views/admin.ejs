@@ -3,7 +3,10 @@
 <section class="panel admin">
   <div class="msg-head">
     <h1>Admin</h1>
-    <form method="post" action="/admin/logout" class="inline"><button class="btn small ghost">Sign out</button></form>
+    <div class="msg-actions">
+      <a class="btn small ghost" href="/admin/password">Change password</a>
+      <form method="post" action="/admin/logout" class="inline"><button class="btn small ghost">Sign out</button></form>
+    </div>
   </div>
 
   <% if (notice) { %><p class="notice"><%= notice %></p><% } %>

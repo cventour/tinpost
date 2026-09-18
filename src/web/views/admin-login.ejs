@@ -1,11 +1,24 @@
 <%- include('partials/head', { title: 'Admin — MailButler', addr: null }) %>
 <section class="panel narrow">
   <h1>Admin</h1>
-  <p class="lede">One password, no username. It was printed in the server log on first start.</p>
+
+  <% if (locals.notice) { %><p class="notice"><%= notice %></p><% } %>
+
+  <% if (locals.firstRun) { %>
+    <p class="lede">
+      MailButler generated a temporary password when it started for the first time and
+      printed it to the server log, next to the address it is listening on. Enter it
+      here and you will be asked to choose your own.
+    </p>
+  <% } else { %>
+    <p class="lede">One password, no username.</p>
+  <% } %>
+
   <form method="post" action="/admin/login" class="addr-form">
     <input type="password" name="password" placeholder="Admin password" required autofocus aria-label="Admin password">
     <button type="submit">Sign in</button>
   </form>
+
   <% if (error) { %><p class="error"><%= error %></p><% } %>
 </section>
 <%- include('partials/foot') %>

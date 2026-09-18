@@ -4,6 +4,31 @@ Every release, in plain language. Newest first.
 
 ---
 
+## Unreleased
+
+- Changed: you are no longer asked to invent an admin password at first start.
+  MailButler generates one, prints it to the server log next to the address it is
+  listening on, and treats it as temporary. Signing in with it leads straight to a
+  "choose your admin password" page, and nothing else in the admin area works until
+  you have replaced it. Changing the password signs out every admin session,
+  including the one you changed it from.
+- Changed: the sign-in page now says where to find the generated password on a first
+  start, instead of leaving you to guess.
+- New: **Change password** on the admin page, for changing it later. It asks for the
+  current password as well as the new one, so a session cookie on its own is never
+  enough to take an instance over.
+- Changed: starting with `--admin-password` when a password is already stored now
+  says so in the log. Left in a start script, the flag silently undid a password set
+  in the admin page on every restart.
+- Docs: [docs/SMTP-OPTIONS.md](docs/SMTP-OPTIONS.md) documents every configuration
+  option the SMTP listener supports, what MailButler sets today, and which settings
+  are worth exposing. It records a measured finding: the `size` limit is advertised
+  and checked against a client's declared size, but does not stop an oversized
+  transfer, so a sender that ignores it can keep streaming. Nothing is stored and no
+  disk is consumed, but the reading is unbounded.
+
+---
+
 ## v0.1.0 — 18 September 2026
 
 First release. MailButler is a self-contained mail server for lab environments: it

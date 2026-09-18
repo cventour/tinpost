@@ -15,13 +15,20 @@ export async function start(flags = {}, { logger = console } = {}) {
   const blobs = new BlobStore(config);
   const delivery = new Delivery({ db, blobs, maxSize: config.maxSize });
 
-  // Bootstrap the admin password on first run, or whenever one is supplied.
+  // Nobody is asked to invent a password at first start. One is generated, printed
+  // to the log, and marked as temporary: signing in with it leads straight to a
+  // change-password page and nothing else works until it has been replaced.
   let generatedPassword = null;
+  let passwordOverridden = false;
   if (config.adminPassword) {
+    // An explicitly supplied password is the operator's own choice, so it stands.
+    // But a flag left in a launch script would otherwise silently undo a password
+    // chosen in the admin page on every restart, so that case is reported.
+    passwordOverridden = db.hasAdminPassword() && !db.verifyAdminPassword(config.adminPassword);
     db.setAdminPassword(config.adminPassword);
   } else if (!db.hasAdminPassword()) {
     generatedPassword = generatePassword();
-    db.setAdminPassword(generatedPassword);
+    db.setAdminPassword(generatedPassword, { mustChange: true });
   }
 
   const smtp = createSmtpServer({ db, blobs, delivery, config, logger });
@@ -42,6 +49,7 @@ export async function start(flags = {}, { logger = console } = {}) {
     delivery,
     ports,
     generatedPassword,
+    passwordOverridden,
     async stop() {
       await web.close();
       await smtp.close();

@@ -113,7 +113,7 @@ try {
   process.exit(1);
 }
 
-const { config, ports, generatedPassword } = instance;
+const { config, ports, generatedPassword, passwordOverridden } = instance;
 const displayHost = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
 
 console.log(`
@@ -127,7 +127,18 @@ console.log(`
 
 if (generatedPassword) {
   console.log(`  Admin password: ${generatedPassword}`);
-  console.log(`  (generated on first run and stored hashed; set your own with --admin-password)\n`);
+  console.log(
+    `  This is a temporary password for the first sign-in only. Enter it at\n` +
+      `  ${displayHost}:${ports.http}/admin and you will be asked to choose your own.\n`,
+  );
+}
+
+if (passwordOverridden) {
+  console.log(
+    `  Note: --admin-password replaced the password already stored for this data\n` +
+      `  directory. Drop the flag from your start command to keep using the one you\n` +
+      `  set in the admin page.\n`,
+  );
 }
 
 if (config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !== '::1') {

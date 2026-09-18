@@ -117,10 +117,21 @@ export class Db {
 
   // ---------- admin password ----------
 
-  setAdminPassword(plain) {
+  /**
+   * @param {string} plain
+   * @param {{ mustChange?: boolean }} [opts] mark the password as temporary, so the
+   *   admin page forces it to be replaced before anything else can be done.
+   */
+  setAdminPassword(plain, { mustChange = false } = {}) {
     const salt = randomBytes(16);
     const derived = scryptSync(plain, salt, 64);
     this.setSetting('admin_password_hash', `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`);
+    this.setSetting('admin_password_must_change', mustChange ? '1' : '0');
+  }
+
+  /** True while the admin is still on the password generated at first start. */
+  adminPasswordMustChange() {
+    return this.getSetting('admin_password_must_change') === '1';
   }
 
   hasAdminPassword() {
