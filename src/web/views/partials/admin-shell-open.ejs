@@ -1,0 +1,12 @@
+<%- include('head', { title, addr: null, wide: true }) %>
+<div class="admin-shell">
+<% if (locals.chrome !== false) { %><%- include('admin-nav') %><% } %>
+<section class="section">
+  <% if (locals.exposed) { %>
+    <p class="warn">
+      Bound to <code><%= host %></code>, not loopback. Anyone who can reach this host
+      can read every mailbox. Only do this on an isolated lab network.
+    </p>
+  <% } %>
+  <% if (locals.notice) { %><p class="notice"><%= notice %></p><% } %>
+  <% if (locals.error) { %><p class="error"><%= error %></p><% } %>

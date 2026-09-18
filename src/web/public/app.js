@@ -49,7 +49,10 @@
         '<span class="who">' + esc(who) + '</span>' +
         '<span class="subject">' + esc(m.subject || '(no subject)') + '</span>' +
         '<span class="snippet">' + esc(m.snippet) + '</span>' +
-        '<span class="meta">' + (m.hasAttachments ? '<span class="clip" title="Has attachments">\u{1F4CE}</span> ' : '') +
+        '<span class="meta">' +
+        (m.hasAttachments
+          ? '<svg class="ico clip" viewBox="0 0 24 24" aria-label="Has attachments" role="img"><use href="#i-clip"/></svg>'
+          : '') +
         '<time datetime="' + esc(m.date) + '">' + esc(fmtTime(m.date)) + '</time></span></a>';
       return li;
     }
@@ -160,7 +163,62 @@
     });
   }
 
+  /* ---------- theme ---------- */
+
+  /* Three states, not two: following the system is the default, and a click moves
+     to whichever theme is not currently showing. Only an explicit choice is
+     stored, so a machine that switches at sunset keeps doing so until told not to. */
+  function initTheme(button) {
+    function showing() {
+      var set = document.documentElement.dataset.theme;
+      if (set === 'light' || set === 'dark') return set;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark' : 'light';
+    }
+    button.addEventListener('click', function () {
+      var next = showing() === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('mb.theme', next); } catch (e) {}
+    });
+  }
+
+  /* ---------- settings ribbon ---------- */
+
+  /* Collapsing is a per-browser convenience, so it lives in localStorage and the
+     page must render correctly when that read fails. */
+  function initRibbon(ribbon) {
+    var toggle = ribbon.querySelector('[data-ribbon-toggle]');
+    if (!toggle) return;
+
+    function apply(collapsed, persist) {
+      ribbon.classList.toggle('collapsed', collapsed);
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      toggle.setAttribute('title', collapsed ? 'Expand the sidebar' : 'Collapse the sidebar');
+      var use = toggle.querySelector('use');
+      if (use) use.setAttribute('href', collapsed ? '#i-expand' : '#i-collapse');
+      var text = toggle.querySelector('.ribbon-toggle-text');
+      if (text) text.textContent = collapsed ? 'Expand' : 'Collapse';
+      if (persist) {
+        try { localStorage.setItem('mb.ribbon', collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
+      }
+    }
+
+    var stored = null;
+    try { stored = localStorage.getItem('mb.ribbon'); } catch (e) {}
+    if (stored === 'collapsed') apply(true, false);
+
+    toggle.addEventListener('click', function () {
+      apply(!ribbon.classList.contains('collapsed'), true);
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    var themeBtn = document.querySelector('[data-theme-toggle]');
+    if (themeBtn) initTheme(themeBtn);
+
+    var ribbon = document.querySelector('[data-ribbon]');
+    if (ribbon) initRibbon(ribbon);
+
     var inbox = document.querySelector('[data-live-inbox]');
     if (inbox) initLiveInbox(inbox);
 

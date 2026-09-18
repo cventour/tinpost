@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T00:00:00Z",
+  "title": "Design System: MailButler",
+  "extensions": {
+    "colorMeta": {
+      "bg": { "role": "neutral", "displayName": "Field", "canonical": "#f6f7f9", "darkValue": "#14171c", "tonalRamp": ["#14171c", "#1b1f26", "#2c323b", "#5b6572", "#99a3b0", "#dfe3e8", "#f0f2f5", "#f6f7f9"] },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#ffffff", "darkValue": "#1b1f26", "tonalRamp": ["#101318", "#1b1f26", "#2c323b", "#4a525d", "#8b95a2", "#c9cfd7", "#eef1f4", "#ffffff"] },
+      "sunk": { "role": "neutral", "displayName": "Sunk", "canonical": "#f0f2f5", "darkValue": "#161a20", "tonalRamp": ["#0f1217", "#161a20", "#272d36", "#4e5763", "#8e98a5", "#cdd3db", "#e5e9ee", "#f0f2f5"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#1b1f24", "darkValue": "#e7eaee", "tonalRamp": ["#0c0e11", "#1b1f24", "#2f353d", "#4a525d", "#6e7885", "#99a3b0", "#c6ccd4", "#e7eaee"] },
+      "ink-dim": { "role": "neutral", "displayName": "Dim Ink", "canonical": "#5b6572", "darkValue": "#99a3b0", "tonalRamp": ["#12161b", "#232a33", "#39424e", "#5b6572", "#7d8794", "#99a3b0", "#c2c9d1", "#e6e9ed"] },
+      "line": { "role": "neutral", "displayName": "Line", "canonical": "#dfe3e8", "darkValue": "#2c323b", "tonalRamp": ["#14171c", "#20252c", "#2c323b", "#4b535f", "#7c8693", "#b3bac3", "#dfe3e8", "#f3f5f7"] },
+      "accent": { "role": "primary", "displayName": "Signal Blue", "canonical": "#2b5fd9", "darkValue": "#6c93f0", "tonalRamp": ["#0d1c44", "#132a66", "#1c3d92", "#2b5fd9", "#4f7ce4", "#6c93f0", "#a6bef7", "#dde7fd"] },
+      "accent-ink": { "role": "primary", "displayName": "Accent Ink", "canonical": "#ffffff", "darkValue": "#10131a", "tonalRamp": ["#10131a", "#252a34", "#434a57", "#6d7482", "#9aa1ad", "#c6ccd4", "#e9ecf0", "#ffffff"] },
+      "warn-bg": { "role": "tertiary", "displayName": "Warn Wash", "canonical": "#fff6e5", "darkValue": "#3a2f14", "tonalRamp": ["#241c0a", "#3a2f14", "#5c4a1e", "#8a6f2c", "#b8953e", "#dcbb6d", "#f2dfae", "#fff6e5"] },
+      "warn-line": { "role": "tertiary", "displayName": "Warn Line", "canonical": "#e0b050", "darkValue": "#a07a26", "tonalRamp": ["#2e2109", "#4a3610", "#6d4f19", "#a07a26", "#c69739", "#e0b050", "#eecf94", "#f8ebcf"] },
+      "err-bg": { "role": "tertiary", "displayName": "Error Wash", "canonical": "#fdecec", "darkValue": "#3a1e1e", "tonalRamp": ["#240f0f", "#3a1e1e", "#5c2e2e", "#8a4444", "#b05555", "#d05050", "#eda6a6", "#fdecec"] },
+      "err-line": { "role": "tertiary", "displayName": "Error Line", "canonical": "#d05050", "darkValue": "#b05555", "tonalRamp": ["#2c1111", "#471b1b", "#6c2929", "#9a3b3b", "#b05555", "#d05050", "#e79797", "#f9dcdc"] },
+      "ok-bg": { "role": "tertiary", "displayName": "OK Wash", "canonical": "#e9f5ec", "darkValue": "#1d3325", "tonalRamp": ["#0f1e15", "#1d3325", "#2c4d38", "#3d6e4e", "#4d9f66", "#7dbe90", "#b9dcc4", "#e9f5ec"] },
+      "ok-line": { "role": "tertiary", "displayName": "OK Line", "canonical": "#4d9f66", "darkValue": "#4d9f66", "tonalRamp": ["#0e2014", "#163420", "#204d2f", "#2f7245", "#4d9f66", "#78bb8c", "#aed8ba", "#dcefe2"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The h1 of a webmail panel or login card; one per page." },
+      "headline": { "displayName": "Headline", "purpose": "The message subject in the message view." },
+      "title": { "displayName": "Title", "purpose": "The h1 inside an admin section, where the ribbon already states location." },
+      "body": { "displayName": "Body", "purpose": "Default UI text at 15px/1.5, system font stack." },
+      "label": { "displayName": "Label", "purpose": "Field captions, hints, row metadata, small buttons; almost always dim ink." },
+      "section-label": { "displayName": "Section Label", "purpose": "h2 — uppercase, 0.6px tracked, dim; divides a form or panel without weight." },
+      "micro-label": { "displayName": "Micro Label", "purpose": "11px uppercase tracked labels: tags, live-dot, ribbon group headings, table heads." },
+      "mono": { "displayName": "Machine Text", "purpose": "Addresses, MIME types, ports, raw source, composed message bodies." }
+    },
+    "shadows": [
+      { "name": "shadow", "value": "0 1px 2px rgba(16, 20, 28, 0.08), 0 1px 3px rgba(16, 20, 28, 0.06)", "darkValue": "0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3)", "purpose": "The only shadow in the system. Used once: the active settings-ribbon item, to lift it out of the sunk column onto the content plane." }
+    ],
+    "motion": [
+      { "name": "state-ease", "value": "0.16s ease", "purpose": "Colour, background and border transitions on interactive chrome (theme button, ribbon items, ribbon toggle)." },
+      { "name": "tooltip-ease", "value": "0.14s ease", "purpose": "Opacity and 4px travel of the collapsed ribbon's flyout tooltip." },
+      { "name": "arrival-flash", "value": "flash 1.4s ease-out", "purpose": "A newly delivered message row fades from a 22% accent wash to transparent. Disabled under prefers-reduced-motion." },
+      { "name": "layout-change", "value": "none", "purpose": "Layout properties are never animated. The ribbon's 190px to 62px collapse is an instant mode switch because animating width thrashes the reflowing column." }
+    ],
+    "breakpoints": [
+      { "name": "row-snippet", "value": "760px", "note": "min-width. Message rows gain a fourth column and reveal the snippet." },
+      { "name": "admin-stack", "value": "680px", "note": "max-width. Admin shell stacks; the ribbon becomes a labelled wrapping row with no collapsed mode; settings rows drop to one column." }
+    ],
+    "storageKeys": [
+      { "name": "mb.theme", "values": "light | dark", "note": "Only an explicit choice is written. Absence means follow the system. Applied by an inline pre-paint script in partials/head.ejs so there is no flash." },
+      { "name": "mb.ribbon", "values": "collapsed | expanded", "note": "Applied on DOMContentLoaded; the page must render correctly when the read throws." },
+      { "name": "mb.view", "values": "html | text | source", "note": "The reader's last message-body view; only honoured when that view exists for the message." }
+    ],
+    "securityConstraints": [
+      { "surface": ".html-body iframe", "rule": "Fully sandboxed (bare `sandbox`, no allow-scripts, no allow-same-origin), referrerpolicy no-referrer, served under a CSP denying all network sources with inline images inlined as data: URIs. Because it cannot measure itself, it gets a fixed 60vh viewport (min 300px), scrolls internally, and is user-resizable vertically. src is assigned from JS." },
+      { "surface": "attachments", "rule": "Always download, never render or execute, always under a neutral content type. No inline preview component may be added." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The committing action on any form or row: Send, Save, Compose.",
+      "html": "<button class=\"ds-btn\">Save changes</button>",
+      "css": ".ds-btn { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; cursor: pointer; display: inline-block; padding: 9px 16px; border-radius: 6px; border: 1px solid var(--accent, #2b5fd9); background: var(--accent, #2b5fd9); color: var(--accent-ink, #fff); white-space: nowrap; } .ds-btn:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 1px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The secondary of record — non-committal actions such as Download .eml or Cancel.",
+      "html": "<button class=\"ds-btn-ghost\">Download .eml</button>",
+      "css": ".ds-btn-ghost { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; cursor: pointer; display: inline-block; padding: 9px 16px; border-radius: 6px; background: transparent; color: var(--ink, #1b1f24); border: 1px solid var(--line, #dfe3e8); white-space: nowrap; } .ds-btn-ghost:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 1px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Every text, email, password and number field. Recessed into the field colour.",
+      "html": "<label class=\"ds-field\"><span>Mailbox address</span><input class=\"ds-input\" type=\"text\" placeholder=\"anyone@lab.test\"></label>",
+      "css": ".ds-field { display: block; } .ds-field > span { display: block; font-size: 13px; color: var(--ink-dim, #5b6572); margin-bottom: 4px; } .ds-input { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--ink, #1b1f24); background: var(--bg, #f6f7f9); border: 1px solid var(--line, #dfe3e8); border-radius: 6px; padding: 9px 11px; width: 100%; } .ds-input::placeholder { color: var(--ink-dim, #5b6572); opacity: 1; } .ds-input:focus { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 1px; }"
+    },
+    {
+      "name": "Folder Tab",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Pill tab for mail folders and message-body views. Active state adds a border, a field-coloured fill and weight.",
+      "html": "<div class=\"ds-tabs\"><a class=\"ds-tab ds-tab-on\" href=\"#\">Inbox <span class=\"ds-count\">3</span></a><a class=\"ds-tab\" href=\"#\">Sent</a></div>",
+      "css": ".ds-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; } .ds-tab { font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; text-decoration: none; color: var(--ink-dim, #5b6572); padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; } .ds-tab:hover { color: var(--ink, #1b1f24); } .ds-tab-on { color: var(--ink, #1b1f24); border-color: var(--line, #dfe3e8); background: var(--bg, #f6f7f9); font-weight: 600; } .ds-tab:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 2px; } .ds-count { color: var(--accent, #2b5fd9); font-weight: 700; font-size: 13px; }"
+    },
+    {
+      "name": "Settings Ribbon Item",
+      "kind": "nav",
+      "refersTo": "ribbon-item",
+      "description": "A row of the vertical admin ribbon: 20px sprite icon plus label, with the active row lifted onto the panel plane. Collapsed, the label becomes a flyout tooltip.",
+      "html": "<nav class=\"ds-ribbon\"><p class=\"ds-ribbon-group\">Mail</p><a class=\"ds-ribbon-item ds-ribbon-on\" href=\"#\"><svg class=\"ds-ico\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"2.5\" y=\"5\" width=\"19\" height=\"14\" rx=\"2\"/><path d=\"M3 7l8.1 5.4a1.6 1.6 0 0 0 1.8 0L21 7\"/></svg><span>SMTP</span></a><a class=\"ds-ribbon-item\" href=\"#\"><svg class=\"ds-ico\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"8.6\"/><path d=\"M3.6 9.6h16.8M3.6 14.4h16.8\"/><path d=\"M12 3.4c2.2 2.3 3.4 5.3 3.4 8.6s-1.2 6.3-3.4 8.6c-2.2-2.3-3.4-5.3-3.4-8.6S9.8 5.7 12 3.4Z\"/></svg><span>Domains</span></a></nav>",
+      "css": ".ds-ribbon { width: 190px; background: var(--sunk, #f0f2f5); border-right: 1px solid var(--line, #dfe3e8); padding: 10px; display: flex; flex-direction: column; gap: 1px; font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; } .ds-ribbon-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--ink-dim, #5b6572); margin: 0; padding: 8px 9px 5px; white-space: nowrap; } .ds-ribbon-item { display: flex; align-items: center; gap: 10px; padding: 8px 9px; border-radius: 7px; color: var(--ink-dim, #5b6572); text-decoration: none; white-space: nowrap; transition: color .16s ease, background-color .16s ease; } .ds-ribbon-item:hover { color: var(--ink, #1b1f24); background: color-mix(in srgb, var(--ink, #1b1f24) 6%, transparent); } .ds-ribbon-on { color: var(--ink, #1b1f24); font-weight: 600; background: var(--panel, #fff); box-shadow: var(--shadow, 0 1px 2px rgba(16,20,28,.08), 0 1px 3px rgba(16,20,28,.06)); } .ds-ribbon-on .ds-ico { color: var(--accent, #2b5fd9); } .ds-ribbon-item:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 2px; } .ds-ico { width: 20px; height: 20px; flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }"
+    },
+    {
+      "name": "Message Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "One line of the mailbox list: sender / subject / snippet / meta on a baseline grid. Unread is weight plus a 5% accent wash; a just-delivered row flashes once.",
+      "html": "<ul class=\"ds-msg-list\"><li class=\"ds-msg ds-msg-unseen\"><a href=\"#\"><span class=\"ds-who\">helpdesk@corp.test</span><span class=\"ds-subject\">Password expiry notice</span><span class=\"ds-snippet\">Your account password expires in 24 hours…</span><span class=\"ds-meta\"><time>09:41</time></span></a></li><li class=\"ds-msg\"><a href=\"#\"><span class=\"ds-who\">noreply@app.test</span><span class=\"ds-subject\">Welcome aboard</span><span class=\"ds-snippet\">Confirm your address to finish signing up…</span><span class=\"ds-meta\"><time>Sep 12 14:05</time></span></a></li></ul>",
+      "css": ".ds-msg-list { list-style: none; margin: 0; padding: 0; font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; } .ds-msg { border-top: 1px solid var(--line, #dfe3e8); } .ds-msg:first-child { border-top: 0; } .ds-msg a { display: grid; grid-template-columns: 180px minmax(0, 22ch) minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 11px 6px; text-decoration: none; color: var(--ink, #1b1f24); } .ds-msg a:hover { background: var(--bg, #f6f7f9); } .ds-msg a:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: -2px; } .ds-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-dim, #5b6572); } .ds-subject { font-weight: 500; } .ds-snippet { color: var(--ink-dim, #5b6572); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-meta { color: var(--ink-dim, #5b6572); font-size: 13px; white-space: nowrap; } .ds-msg-unseen { background: color-mix(in srgb, var(--accent, #2b5fd9) 5%, transparent); } .ds-msg-unseen .ds-who, .ds-msg-unseen .ds-subject { font-weight: 700; color: var(--ink, #1b1f24); }"
+    },
+    {
+      "name": "Status Banner",
+      "kind": "card",
+      "refersTo": null,
+      "description": "Full-width block above the content it concerns. Three tints: error, notice (ok), warn.",
+      "html": "<p class=\"ds-warn\">Bound to <code class=\"ds-code\">0.0.0.0</code>, not loopback. Anyone who can reach this host can read every mailbox.</p>",
+      "css": ".ds-warn { font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--ink, #1b1f24); padding: 10px 14px; border-radius: 6px; margin: 14px 0; background: var(--warn-bg, #fff6e5); border: 1px solid var(--warn-line, #e0b050); } .ds-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; background: var(--bg, #f6f7f9); padding: 1px 5px; border-radius: 4px; }"
+    },
+    {
+      "name": "Live Indicator",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "Reports mail-stream transport health honestly: dim = connecting, green = live over SSE, amber = polling fallback.",
+      "html": "<span class=\"ds-live\" data-live-state=\"live\">live</span>",
+      "css": ".ds-live { font: 11px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; text-transform: uppercase; letter-spacing: 0.7px; color: var(--ink-dim, #5b6572); } .ds-live::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-dim, #5b6572); margin-right: 5px; vertical-align: middle; } .ds-live[data-live-state=\"live\"]::before { background: var(--ok-line, #4d9f66); } .ds-live[data-live-state=\"polling\"]::before { background: var(--warn-line, #e0b050); }"
+    },
+    {
+      "name": "Theme Toggle",
+      "kind": "button",
+      "refersTo": "theme-btn",
+      "description": "30px icon button in the top bar showing the theme you would switch TO. Three states: follow system (default), explicit light, explicit dark; only an explicit choice is persisted.",
+      "html": "<button type=\"button\" class=\"ds-theme-btn\" aria-label=\"Switch between light and dark\"><svg class=\"ds-ico\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.6 8.6 0 1 0 10.7 10.7Z\"/></svg></button>",
+      "css": ".ds-theme-btn { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; background: none; border: 1px solid transparent; cursor: pointer; color: var(--ink-dim, #5b6572); transition: color .16s ease, background-color .16s ease, border-color .16s ease; } .ds-theme-btn:hover { color: var(--ink, #1b1f24); border-color: var(--line, #dfe3e8); background: var(--bg, #f6f7f9); } .ds-theme-btn:focus-visible { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 2px; } .ds-ico { width: 20px; height: 20px; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }"
+    },
+    {
+      "name": "Setting Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The admin section's unit of configuration: label plus hint on the left, right-aligned tabular control with an optional unit on the right, hairline-separated.",
+      "html": "<div class=\"ds-setting\"><div><label class=\"ds-setting-label\">Maximum message size</label><p class=\"ds-setting-hint\">Larger messages are rejected at DATA. Applies to the next connection.</p></div><div class=\"ds-setting-control\"><input class=\"ds-setting-input\" type=\"number\" value=\"10\"><span class=\"ds-unit\">MB</span></div></div>",
+      "css": ".ds-setting { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px 20px; align-items: start; padding: 15px 0; border-top: 1px solid var(--line, #dfe3e8); font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; } .ds-setting-label { display: block; font-weight: 500; color: var(--ink, #1b1f24); } .ds-setting-hint { color: var(--ink-dim, #5b6572); font-size: 13px; margin: 2px 0 0; max-width: 62ch; } .ds-setting-control { display: flex; align-items: center; gap: 7px; justify-content: flex-end; } .ds-setting-input { font: inherit; color: var(--ink, #1b1f24); background: var(--bg, #f6f7f9); border: 1px solid var(--line, #dfe3e8); border-radius: 6px; padding: 9px 11px; width: 100%; text-align: right; font-variant-numeric: tabular-nums; } .ds-setting-input:focus { outline: 2px solid var(--accent, #2b5fd9); outline-offset: 1px; } .ds-unit { color: var(--ink-dim, #5b6572); font-size: 13px; white-space: nowrap; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The House Utility",
+    "overview": "MailButler looks like something that came with the operating system. It is a lab instrument — a mail server you point a phishing simulation or an app's signup flow at, and a webmail UI where you type any address and read that mailbox. Nothing it shows is precious; everything it shows is evidence. So the interface spends no attention on itself: one system font stack, one accent, flat panels on a faintly tinted field, and enough border to tell surfaces apart without drawing them.\n\nBoth surfaces are task surfaces. Reading mail wants scanning speed and native expectations (rows, folders, an unread weight). Configuring an instance is done rarely, so every control carries a written label and a hint sentence rather than relying on remembered icon positions. The density is moderate: rows at 11px vertical padding, panels at 24px, settings sections at 26/30/30 — tight enough to see a screenful, loose enough not to misclick.\n\nThe colour work is entirely tonal. A light theme and a dark theme are declared from the same token block and the whole interface — including the browser's own selection, placeholder, focus ring and scrollbar surfaces — is repainted from those tokens, so nothing inherits a stray default and gives away that this is a web page rather than a client.",
+    "keyCharacteristics": [
+      "System UI font everywhere; monospace reserved for machine text (addresses, MIME types, source, composed bodies).",
+      "One accent (--accent) for links, focus, primary action and counts; everything else is ink, dim ink and line.",
+      "Flat by default: 1px --line borders do the separating; the single --shadow appears once, on the active ribbon item.",
+      "Light/dark is a three-state choice (follow system, explicit light, explicit dark), applied before first paint.",
+      "Labels over icon memory; icons are always paired with text, or with a tooltip when the ribbon is collapsed."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "There is exactly one accent. Anything that needs to stand out and is not a status uses --accent or a color-mix of it; never introduce a second hue for emphasis.", "section": "colors" },
+      { "name": "The Mirrored Token Rule", "body": "Dark is not a separate palette — it is the same fourteen token names re-declared. It is declared twice on purpose: under @media (prefers-color-scheme: dark) scoped to :root:not([data-theme=\"light\"]) so an explicit light choice beats the system, and again under :root[data-theme=\"dark\"] for an explicit dark choice. Add a colour token and you add it in all three blocks or it is broken in one of the three states.", "section": "colors" },
+      { "name": "The Painted Chrome Rule", "body": "The browser's own surfaces are part of the palette. ::selection, ::placeholder, :focus-visible, scrollbar-color and the ::-webkit-scrollbar family are all themed from tokens, and color-scheme is set alongside them so native form controls follow. A new surface that leaves one of these at the default has a visible seam.", "section": "colors" },
+      { "name": "The Foreign Content Rule", "body": "The rendered HTML body is the one region the palette does not own. .html-body is pinned to background: #fff; color-scheme: light because the sender's mail was authored against white — do not theme it.", "section": "colors" },
+      { "name": "The Machine Text Rule", "body": "Monospace marks text the machine produced or must be copied verbatim: addresses, MIME types, ports, hosts, raw source, and the body being composed. Never use it for prose, and never use the UI font for a raw header dump.", "section": "typography" },
+      { "name": "The Weight-Not-Colour Rule", "body": "Unread rows are signalled by weight (700) plus a 5% accent wash, and read rows by --ink-dim sender text. Row state is never signalled by a coloured dot or a hue change to the subject.", "section": "typography" },
+      { "name": "The Tabular Numbers Rule", "body": "Numbers that sit in a column or update in place carry font-variant-numeric: tabular-nums — the ribbon footer's message/disk counts and every right-aligned .setting-control input.", "section": "typography" },
+      { "name": "The Two-Breakpoint Rule", "body": "760px and 680px are the whole responsive vocabulary, and each exists because a specific element stopped fitting. Add a breakpoint only when you can name the element that broke.", "section": "layout" },
+      { "name": "The Reflow-Instantly Rule", "body": "The ribbon collapse (190px to 62px) is a mode switch, not a transition. Width is not animated: animating a layout property janks the entire column as its content reflows. Colour and opacity may transition (.14–.16s ease); geometry may not.", "section": "layout" },
+      { "name": "The Hairline-First Rule", "body": "Separation is a 1px --line border. Reach for a shadow only when an element must read as being on a different plane than the surface it sits on — in the shipped build that is one element.", "section": "elevation" },
+      { "name": "The Sunk-Panel Pair Rule", "body": "Navigation chrome sits on --sunk, content sits on --panel, inputs and hovered rows sink to --bg. Recession is tone, never an inset shadow.", "section": "elevation" },
+      { "name": "The Radius-By-Role Rule", "body": "6px = control, 7px = nav item, 8px = panel, 12px = shell, 999px = state token. Pick by what the element is, not by how large it is.", "section": "shapes" },
+      { "name": "The Icon Inheritance Rule", "body": "fill: none; stroke: currentColor; stroke-width: 1.6 must be set on the .ico <svg> element itself, never on a descendant selector. fill and stroke are inherited properties, and a descendant rule cannot reach into the shadow tree a <use> creates — a rule written as .ico use { ... } renders nothing. This was a live bug; it is now a rule.", "section": "shapes" },
+      { "name": "The One Sprite Rule", "body": "Every icon is authored in partials/icons.ejs on the same 24px grid at the same 1.6 stroke and referenced by id. Icons are never inline one-offs and never a font.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do add every new colour to all three theme blocks (:root, the prefers-color-scheme: dark block scoped to :root:not([data-theme=\"light\"]), and :root[data-theme=\"dark\"]).",
+      "Do set fill and stroke on the .ico <svg> itself and add new icons to the single 24px/1.6-stroke sprite in partials/icons.ejs.",
+      "Do pair every icon with a visible label, or with a .ribbon-tip when the label is hidden by the collapsed state.",
+      "Do use monospace for machine text — addresses, ports, MIME types, raw source, composed bodies — and the UI font for everything a person wrote.",
+      "Do cap explanatory prose (62ch for setting hints, 72ch for policy labels) and mark long unbroken strings with overflow-wrap: anywhere.",
+      "Do guard every localStorage read and write in a try/catch; the page must render correctly when storage is unavailable.",
+      "Do use color-mix(in srgb, var(--token) N%, transparent) for washes and hover tints so they resolve correctly in both themes.",
+      "Do theme the browser's own surfaces (::selection, ::placeholder, :focus-visible, scrollbars) on any new root-level surface.",
+      "Do give any new animation a @media (prefers-reduced-motion: reduce) opt-out, as .msg.arrived and the ribbon transitions have."
+    ],
+    "donts": [
+      "Don't animate a layout property. The ribbon's 190px to 62px change is instant on purpose; transition colour and opacity only.",
+      "Don't introduce a second accent hue. Emphasis is --accent or a mix of it; the status trio is for status only.",
+      "Don't theme the rendered HTML mail body — .html-body stays #fff with color-scheme: light, and the sandboxed frame must keep sandbox and its no-network CSP. It cannot be given scripts, same-origin access, or self-sizing.",
+      "Don't render or preview an attachment inline; attachments always download under a neutral content type.",
+      "Don't let a snippet, a tooltip, or anything else revealed above 760px carry information that isn't available below it.",
+      "Don't replace the system font stack with a webfont; the native voice is the point, and there is no build step to ship one through.",
+      "Don't signal message state with colour alone — unread is weight plus a wash.",
+      "Don't add a breakpoint you cannot justify by naming the element that stopped fitting."
+    ]
+  }
+}

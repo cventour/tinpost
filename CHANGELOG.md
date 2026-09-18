@@ -6,6 +6,33 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- New: the admin area is now a settings page with a vertical ribbon down the side —
+  SMTP, Domains, Mailboxes, Storage and Password. A button at the top collapses it to
+  icons alone when you want the width back, and expands it again; hovering a collapsed
+  icon names it, and the choice is remembered.
+- New: a light/dark switch in the top bar, shown as a sun or a moon. It starts by
+  following your system and only remembers a choice once you make one.
+- New: **SMTP settings you can change from the page**, with no restart. Maximum
+  message size, maximum concurrent connections, maximum recipients per message, idle
+  connection timeout, and the server name and greeting banner the scenario sees. Each
+  one states what a sender is told when it trips.
+- New: the web and SMTP ports can be set from the page too. These are the exception:
+  a listening port cannot move without dropping the page you are reading, so they
+  apply at the next start, and the page says so until then. A port that is already
+  taken, or that needs root, is refused when you save it rather than at the next
+  start, so a saved setting can never stop MailButler from coming back up.
+- Fixed: an oversized message is now cut off rather than read to the end. The library
+  advertises a size limit and checks what a sender declares, but does not stop the
+  transfer, so a sender ignoring it could stream indefinitely. Measured against a
+  1 MB limit, a client that pushed 60 MB is now stopped after about 3 MB, still gets a
+  proper `552`, and has its connection closed.
+- Fixed: a refused oversized message no longer leaves a truncated copy on disk.
+- Changed: concurrent connections are capped at 50 by default. They were unlimited,
+  and 400 idle connections were enough to exhaust the process.
+- Changed: one message can no longer name unlimited recipients; the default cap is 100,
+  with the rest refused with `452`.
+- Changed: the paperclip on a message with attachments is now a drawn icon rather than
+  an emoji, so it looks the same on every platform. The same goes for the tab icon.
 - Changed: you are no longer asked to invent an admin password at first start.
   MailButler generates one, prints it to the server log next to the address it is
   listening on, and treats it as temporary. Signing in with it leads straight to a

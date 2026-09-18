@@ -1,0 +1,54 @@
+<%#
+  The settings ribbon. It ships expanded; the toggle collapses it to icons alone and
+  the choice is remembered per browser. Labels stay in the markup when collapsed so
+  they remain available to a screen reader and can double as the hover tooltip.
+%>
+<nav class="ribbon" data-ribbon aria-label="Settings sections">
+  <button type="button" class="ribbon-toggle" data-ribbon-toggle
+          aria-expanded="true" aria-controls="ribbon-sections"
+          title="Collapse the sidebar">
+    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-collapse"/></svg>
+    <span class="ribbon-toggle-text">Collapse</span>
+  </button>
+
+  <div class="ribbon-sections" id="ribbon-sections">
+    <p class="ribbon-group" aria-hidden="true">Mail</p>
+    <%
+      const sections = [
+        { href: '/admin',            key: 'smtp',      icon: 'i-smtp',      label: 'SMTP' },
+        { href: '/admin/domains',    key: 'domains',   icon: 'i-domains',   label: 'Domains' },
+        { href: '/admin/mailboxes',  key: 'mailboxes', icon: 'i-mailboxes', label: 'Mailboxes' },
+      ];
+      const instance = [
+        { href: '/admin/storage',    key: 'storage',   icon: 'i-storage',   label: 'Storage' },
+        { href: '/admin/password',   key: 'password',  icon: 'i-password',  label: 'Password' },
+      ];
+    %>
+    <% sections.forEach(function (s) { %>
+      <a class="ribbon-item <%= section === s.key ? 'on' : '' %>" href="<%= s.href %>"
+         <%= section === s.key ? 'aria-current="page"' : '' %>>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#<%= s.icon %>"/></svg>
+        <span class="ribbon-label"><%= s.label %></span>
+        <span class="ribbon-tip" aria-hidden="true"><%= s.label %></span>
+      </a>
+    <% }) %>
+
+    <p class="ribbon-group" aria-hidden="true">Instance</p>
+    <% instance.forEach(function (s) { %>
+      <a class="ribbon-item <%= section === s.key ? 'on' : '' %>" href="<%= s.href %>"
+         <%= section === s.key ? 'aria-current="page"' : '' %>>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#<%= s.icon %>"/></svg>
+        <span class="ribbon-label"><%= s.label %></span>
+        <span class="ribbon-tip" aria-hidden="true"><%= s.label %></span>
+      </a>
+    <% }) %>
+  </div>
+
+  <div class="ribbon-foot">
+    <span class="ribbon-label">
+      <%= stats.messages %> message<%= stats.messages === 1 ? '' : 's' %><br>
+      <%= fmtBytes(usage.bytes) %> on disk
+    </span>
+    <span class="ribbon-foot-compact" aria-hidden="true"><%= fmtBytes(usage.bytes) %></span>
+  </div>
+</nav>

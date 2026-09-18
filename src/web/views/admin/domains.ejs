@@ -1,0 +1,43 @@
+<%- include('../partials/admin-shell-open') %>
+
+<h1>Domains</h1>
+<p class="lede">Which recipients this server accepts mail for.</p>
+
+<form method="post" action="/admin/policy" class="policy-form">
+  <label><input type="radio" name="policy" value="any" <%= policy === 'any' ? 'checked' : '' %>>
+    <b>Any domain</b> &mdash; act as a catch-all. Every recipient is accepted.</label>
+  <label><input type="radio" name="policy" value="allowlist" <%= policy === 'allowlist' ? 'checked' : '' %>>
+    <b>Allowlist only</b> &mdash; refuse anything else with a <code>550</code>, the way a real
+    mail server would, so a client under test sees a realistic failure.</label>
+  <button class="btn small" type="submit">Save policy</button>
+</form>
+
+<h2>Allowed domains</h2>
+<div class="domains <%= policy === 'any' ? 'dim' : '' %>">
+  <form method="post" action="/admin/domains/add" class="addr-form small">
+    <input type="text" name="domain" placeholder="lab.local, corp.test" aria-label="Domain to accept">
+    <button type="submit">Add domain</button>
+  </form>
+
+  <% if (domains.length) { %>
+    <ul class="chips">
+      <% domains.forEach(function (d) { %>
+        <li>
+          <code><%= d %></code>
+          <form method="post" action="/admin/domains/remove" class="inline">
+            <input type="hidden" name="domain" value="<%= d %>">
+            <button class="chip-x" title="Remove <%= d %>" aria-label="Remove <%= d %>">&times;</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <p class="hint">No domains yet. While the policy is &ldquo;allowlist&rdquo;, an empty list refuses everything.</p>
+  <% } %>
+
+  <% if (policy === 'any') { %>
+    <p class="hint">The list is kept but not consulted while every domain is accepted.</p>
+  <% } %>
+</div>
+
+<%- include('../partials/admin-shell-close') %>

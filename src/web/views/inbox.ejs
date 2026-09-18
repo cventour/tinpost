@@ -23,7 +23,7 @@
           <span class="subject"><%= m.subject || '(no subject)' %></span>
           <span class="snippet"><%= m.snippet %></span>
           <span class="meta">
-            <% if (m.has_attachments) { %><span class="clip" title="Has attachments">&#128206;</span><% } %>
+            <% if (m.has_attachments) { %><svg class="ico clip" viewBox="0 0 24 24" aria-label="Has attachments" role="img"><use href="#i-clip"/></svg><% } %>
             <time datetime="<%= m.date_utc %>"><%= fmtDate(m.date_utc) %></time>
           </span>
         </a>

@@ -11,6 +11,11 @@ export async function makeLab(overrides = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), 'mailbutler-test-'));
   const config = loadConfig({ dataDir, smtpPort: 0, httpPort: 0, ...overrides });
   const db = new Db(config.dbPath);
+
+  // Mirror what start() does, so a test that asks for a size limit gets one.
+  if (config.maxSizeExplicit) {
+    db.setSetting('smtp_max_size', String(Math.max(1, Math.round(config.maxSize / (1024 * 1024)))));
+  }
   const blobs = new BlobStore(config);
   const delivery = new Delivery({ db, blobs, maxSize: config.maxSize });
 

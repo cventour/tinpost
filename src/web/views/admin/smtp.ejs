@@ -1,0 +1,82 @@
+<%- include('../partials/admin-shell-open') %>
+
+<h1>SMTP</h1>
+<p class="lede">
+  What a single sender is allowed to do to this instance. Changes apply to the next
+  connection &mdash; there is nothing to restart.
+</p>
+
+<form method="post" action="/admin/smtp">
+  <h2>Limits</h2>
+  <% ['smtp_max_size', 'smtp_max_clients', 'smtp_max_recipients', 'smtp_socket_timeout'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <input type="number" id="f-<%= key %>" name="<%= key %>"
+               value="<%= values[key] %>" min="<%= spec.min %>" max="<%= spec.max %>" required
+               inputmode="numeric">
+        <% if (spec.unit) { %><span class="unit"><%= spec.unit %></span><% } %>
+      </div>
+    </div>
+  <% }) %>
+
+  <h2>Ports</h2>
+<% if (pending.length) { %>
+  <p class="warn">
+    <% pending.forEach(function (p) { %>
+      <%= p.label %> is saved as <code><%= p.saved %></code> but this process is running on
+      <code><%= p.running %></code>. Restart MailButler to move it.
+    <% }) %>
+  </p>
+<% } %>
+<% ['http_port', 'smtp_port'].forEach(function (key) {
+     const spec = specs[key]; %>
+  <div class="setting">
+    <div>
+      <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+      <p class="setting-hint"><%= spec.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="number" id="f-<%= key %>" name="<%= key %>"
+             value="<%= values[key] %>" min="1" max="65535" required inputmode="numeric">
+    </div>
+  </div>
+<% }) %>
+
+<h2>Identity</h2>
+  <% ['smtp_name', 'smtp_banner'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting wide">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <input type="text" id="f-<%= key %>" name="<%= key %>"
+               value="<%= values[key] %>" maxlength="<%= spec.maxLength %>" required>
+      </div>
+    </div>
+  <% }) %>
+
+  <div class="actions">
+    <button type="submit" class="btn">Save settings</button>
+    <span class="save-note">Applied to the next connection.</span>
+  </div>
+</form>
+
+<h2>Running now</h2>
+<table class="kv">
+  <tr><th>SMTP</th><td><code><%= listeners.host %>:<%= listeners.smtpPort %></code> &mdash; no AUTH, no TLS</td></tr>
+  <tr><th>Web</th><td><code>http://<%= listeners.host %>:<%= listeners.httpPort %></code></td></tr>
+  <tr><th>Data directory</th><td><code><%= listeners.dataDir %></code></td></tr>
+</table>
+<p class="hint">
+  The bind address is set at start time: <code>mailbutler serve --host 0.0.0.0</code>.
+  A port given on the command line overrides what is saved here.
+</p>
+
+<%- include('../partials/admin-shell-close') %>

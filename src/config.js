@@ -44,8 +44,15 @@ export function loadConfig(flags = {}) {
     tmpDir: join(dataDir, 'tmp'),
     smtpPort: flags.smtpPort ?? intFromEnv('MAILBUTLER_SMTP_PORT', DEFAULTS.smtpPort),
     httpPort: flags.httpPort ?? intFromEnv('MAILBUTLER_HTTP_PORT', DEFAULTS.httpPort),
+    // A port given on the command line outranks the stored setting; without one, the
+    // setting the admin page wrote is used.
+    smtpPortExplicit: flags.smtpPort !== undefined || !!process.env.MAILBUTLER_SMTP_PORT,
+    httpPortExplicit: flags.httpPort !== undefined || !!process.env.MAILBUTLER_HTTP_PORT,
     host: flags.host || process.env.MAILBUTLER_HOST || DEFAULTS.host,
     maxSize: flags.maxSize ?? intFromEnv('MAILBUTLER_MAX_SIZE', DEFAULTS.maxSize),
+    // Whether a size was actually asked for, as opposed to defaulted. An explicit
+    // one is an instruction and seeds the stored setting the admin page edits.
+    maxSizeExplicit: flags.maxSize !== undefined || !!process.env.MAILBUTLER_MAX_SIZE,
     adminPassword: flags.adminPassword || process.env.MAILBUTLER_ADMIN_PASSWORD || null,
   };
 

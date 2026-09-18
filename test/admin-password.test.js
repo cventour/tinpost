@@ -195,7 +195,7 @@ test('an operator-set password can still be changed voluntarily', async (t) => {
   assert.equal(res.headers.location, '/admin', 'no diversion when the password is not temporary');
 
   const page = await lab.app.inject({ url: '/admin/password', headers: { cookie } });
-  assert.match(page.body, /Change admin password/);
+  assert.match(page.body, /Admin password/);
 
   const dash = await lab.app.inject({ url: '/admin', headers: { cookie } });
   assert.match(dash.body, /\/admin\/password/, 'the dashboard links to it');

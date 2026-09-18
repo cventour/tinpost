@@ -135,8 +135,9 @@ test('an attachment survives the SMTP round trip byte for byte', async (t) => {
   assert.deepEqual(await lab.blobs.read(att.content_hash), payload);
 });
 
-test('a message over the size limit is refused', async (t) => {
-  const lab = await withSmtp(t, { maxSize: 20_000 });
+test('a message over the size limit is refused and leaves nothing behind', async (t) => {
+  // 1 MB, expressed the way the admin page expresses it.
+  const lab = await withSmtp(t, { maxSize: 1024 * 1024 });
 
   await assert.rejects(
     () =>
@@ -145,14 +146,71 @@ test('a message over the size limit is refused', async (t) => {
         to: 'alice@lab.local',
         subject: 'too big',
         text: 'x',
-        attachments: [{ filename: 'big.bin', content: Buffer.alloc(200_000) }],
+        attachments: [{ filename: 'big.bin', content: Buffer.alloc(4 * 1024 * 1024) }],
       }),
     (err) => {
-      assert.ok([552, 552.5, 500].includes(err.responseCode) || /size/i.test(err.message));
+      assert.ok(
+        [552, 421, 451].includes(err.responseCode) || /size|closed|socket/i.test(err.message),
+        `unexpected failure: ${err.responseCode} ${err.message}`,
+      );
       return true;
     },
   );
 
-  assert.equal(lab.db.stats().messages, 0);
+  assert.equal(lab.db.stats().messages, 0, 'nothing is stored');
+  // The truncated message must not be committed to the store either: that would be
+  // the disk leak the limit exists to prevent.
   assert.equal((await lab.blobs.totalSize()).count, 0, 'no partial blob is kept');
+});
+
+test('an oversized transfer is cut off rather than read to the end', async (t) => {
+  const lab = await withSmtp(t, { maxSize: 1024 * 1024 });
+
+  // The library does not enforce the transfer itself, so this checks our own cut-off:
+  // the sender should be stopped well before it can push an unbounded amount.
+  const net = await import('node:net');
+  const sock = net.createConnection({ host: '127.0.0.1', port: lab.port });
+  sock.setEncoding('utf8');
+
+  let replies = '';
+  let closed = false;
+  sock.on('data', (d) => { replies += d; });
+  sock.on('close', () => { closed = true; });
+  sock.on('error', () => { closed = true; });
+
+  const until = (re, ms = 4000) =>
+    new Promise((res) => {
+      const started = Date.now();
+      const tick = () => (re.test(replies) || closed || Date.now() - started > ms ? res() : setTimeout(tick, 15));
+      tick();
+    });
+
+  await new Promise((r) => sock.once('connect', r));
+  await until(/^220 /m);
+  sock.write('EHLO flood.test\r\n'); await until(/250 SIZE/);
+  sock.write('MAIL FROM:<flood@x.test>\r\n'); await new Promise((r) => setTimeout(r, 60));
+  sock.write('RCPT TO:<alice@lab.local>\r\n'); await new Promise((r) => setTimeout(r, 60));
+  sock.write('DATA\r\n'); await until(/^354 /m);
+  sock.write('Subject: flood\r\n\r\n');
+
+  const chunk = 'A'.repeat(64 * 1024) + '\r\n';
+  let sent = 0;
+  const started = Date.now();
+  while (sent < 40 * 1024 * 1024 && !closed && Date.now() - started < 10000) {
+    sock.write(chunk);
+    sent += chunk.length;
+    if ((sent / chunk.length) % 8 === 0) await new Promise((r) => setImmediate(r));
+  }
+  await until(/^552 /m, 2000);
+
+  assert.match(replies, /^552 /m, 'the sender is told why, rather than just dropped');
+  assert.ok(closed, 'and the connection is closed rather than left reading');
+  assert.ok(
+    sent < 20 * 1024 * 1024,
+    `the sender should be stopped early, but got ${(sent / 1024 / 1024).toFixed(1)} MB in`,
+  );
+  assert.equal(lab.db.stats().messages, 0);
+  assert.equal((await lab.blobs.totalSize()).count, 0);
+
+  sock.destroy();
 });

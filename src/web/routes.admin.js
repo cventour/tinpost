@@ -1,11 +1,18 @@
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { normaliseDomain } from '../db.js';
+import {
+  SMTP_SETTINGS,
+  readAllDisplay,
+  saveSettings,
+  pendingRestart,
+  checkPortAvailable,
+} from '../settings.js';
 
 const SESSION_COOKIE = 'mb_admin';
 const SESSION_TTL_MS = 60 * 60 * 1000; // idle timeout
 
 export async function registerAdminRoutes(app) {
-  const { db, blobs, config, logger } = app.mb;
+  const { db, blobs, config, logger, smtp } = app.mb;
   const secret = db.getSetting('session_secret');
 
   function issueSession() {
@@ -98,32 +105,49 @@ export async function registerAdminRoutes(app) {
 
   // ---------- change password ----------
 
-  app.get('/admin/password', (req, reply) => {
+  app.get('/admin/password', async (req, reply) => {
     if (!requireAdmin(req, reply, { allowWhileTemporary: true })) return reply;
-    return reply.view('admin-password', {
-      addr: null,
-      error: null,
-      mustChange: db.adminPasswordMustChange(),
-    });
+    return reply.view('admin/password', await passwordModel());
   });
 
-  app.post('/admin/password', (req, reply) => {
+  /**
+   * While the password is still the temporary one, this page is the only thing
+   * reachable, so the ribbon is left off: it would only offer links that divert
+   * straight back here.
+   */
+  async function passwordModel(extra = {}) {
+    const mustChange = db.adminPasswordMustChange();
+    const usage = await blobs.totalSize();
+    return {
+      addr: null,
+      wide: true,
+      section: 'password',
+      title: 'Password — MailButler admin',
+      mustChange,
+      chrome: !mustChange,
+      stats: db.stats(),
+      usage,
+      exposed: false,
+      notice: null,
+      error: null,
+      ...extra,
+    };
+  }
+
+  app.post('/admin/password', async (req, reply) => {
     if (!requireAdmin(req, reply, { allowWhileTemporary: true })) return reply;
 
     const current = String(req.body?.current ?? '');
     const next = String(req.body?.next ?? '');
     const confirm = String(req.body?.confirm ?? '');
-    const mustChange = db.adminPasswordMustChange();
-
-    const fail = (error) =>
-      reply.code(400).view('admin-password', { addr: null, error, mustChange });
+    const fail = async (error) => reply.code(400).view('admin/password', await passwordModel({ error }));
 
     // Knowing the current password is required even here: a session cookie alone
     // must not be enough to take over the instance.
-    if (!db.verifyAdminPassword(current)) return fail('That is not the current password.');
-    if (next.length < 8) return fail('The new password must be at least 8 characters.');
-    if (next !== confirm) return fail('The two new passwords do not match.');
-    if (next === current) return fail('The new password must be different from the current one.');
+    if (!db.verifyAdminPassword(current)) return await fail('That is not the current password.');
+    if (next.length < 8) return await fail('The new password must be at least 8 characters.');
+    if (next !== confirm) return await fail('The two new passwords do not match.');
+    if (next === current) return await fail('The new password must be different from the current one.');
 
     db.setAdminPassword(next);
     // A password change retires every session issued so far, including this one.
@@ -138,43 +162,129 @@ export async function registerAdminRoutes(app) {
     });
   });
 
-  // ---------- dashboard ----------
+  // ---------- shared model ----------
 
-  app.get('/admin', async (req, reply) => {
-    if (!requireAdmin(req, reply)) return reply;
-    return reply.view('admin', await dashboardModel(req));
-  });
-
-  async function dashboardModel(req, notice = null) {
-    const usage = await blobs.totalSize();
+  /**
+   * Everything the shell needs, whichever section is showing: the ribbon's counts,
+   * and the banner that warns when the instance is not on loopback.
+   */
+  /**
+   * The ports this process actually bound, which are not always the ones asked for:
+   * port 0 means "pick one", and tests rely on that.
+   */
+  function runningPorts() {
+    const httpAddress = app.server?.address?.();
     return {
-      addr: null,
-      notice,
-      policy: db.getAcceptPolicy(),
-      domains: db.listDomains(),
-      mailboxes: db.listMailboxes(),
-      stats: db.stats(),
-      usage,
-      config: {
-        host: config.host,
-        smtpPort: config.smtpPort,
-        httpPort: config.httpPort,
-        dataDir: config.dataDir,
-        maxSize: config.maxSize,
-      },
-      exposed: config.host !== '127.0.0.1' && config.host !== 'localhost',
-      mustChange: db.adminPasswordMustChange(),
+      http_port: (httpAddress && typeof httpAddress === 'object' ? httpAddress.port : null) ?? config.httpPort,
+      smtp_port: smtp?.address?.()?.port ?? config.smtpPort,
     };
   }
 
-  // ---------- policy and domains ----------
+  async function shell(section, extra = {}) {
+    const usage = await blobs.totalSize();
+    return {
+      addr: null,
+      wide: true,
+      section,
+      stats: db.stats(),
+      usage,
+      exposed: config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !== '::1',
+      host: config.host,
+      notice: null,
+      error: null,
+      ...extra,
+    };
+  }
+
+  // ---------- SMTP ----------
+
+  app.get('/admin', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+    return reply.view('admin/smtp', await smtpModel());
+  });
+
+  async function smtpModel(extra = {}) {
+    const running = runningPorts();
+    return shell('smtp', {
+      title: 'SMTP — MailButler admin',
+      specs: SMTP_SETTINGS,
+      values: readAllDisplay(db),
+      pending: pendingRestart(db, running),
+      listeners: {
+        host: config.host,
+        smtpPort: running.smtp_port,
+        httpPort: running.http_port,
+        dataDir: config.dataDir,
+      },
+      ...extra,
+    });
+  }
+
+  app.post('/admin/smtp', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+
+    const body = req.body ?? {};
+
+    // A port is the one setting that can stop MailButler from starting at all, so it
+    // is checked before being written rather than discovered at the next start.
+    const running = runningPorts();
+    for (const key of ['http_port', 'smtp_port']) {
+      if (!(key in body)) continue;
+      const wanted = Number.parseInt(String(body[key]), 10);
+      if (!Number.isInteger(wanted) || wanted < 1 || wanted > 65535) continue; // caught below
+      if (wanted === running[key]) continue;
+      const check = await checkPortAvailable(wanted, config.host, {
+        ignorePorts: [running.http_port, running.smtp_port],
+      });
+      if (!check.ok) {
+        const values = { ...readAllDisplay(db), ...pickSubmitted(body) };
+        return reply.code(400).view('admin/smtp', await smtpModel({ error: check.error, values }));
+      }
+    }
+
+    const result = saveSettings(db, body);
+    if (!result.ok) {
+      // Re-render with what they typed, so a rejected value is not silently lost.
+      const values = { ...readAllDisplay(db), ...pickSubmitted(body) };
+      return reply.code(400).view('admin/smtp', await smtpModel({ error: result.error, values }));
+    }
+
+    // The listener reads these per connection, so they are live immediately.
+    smtp?.refresh?.();
+    logger.info?.('admin: settings updated');
+
+    const stillPending = pendingRestart(db, runningPorts());
+    const notice = stillPending.length
+      ? 'Saved. The limits are live now; the port change applies the next time MailButler starts.'
+      : 'Saved. The listener picked these up straight away.';
+    return reply.view('admin/smtp', await smtpModel({ notice }));
+  });
+
+  // ---------- domains ----------
+
+  app.get('/admin/domains', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+    return reply.view('admin/domains', await domainsModel());
+  });
+
+  async function domainsModel(extra = {}) {
+    return shell('domains', {
+      title: 'Domains — MailButler admin',
+      policy: db.getAcceptPolicy(),
+      domains: db.listDomains(),
+      ...extra,
+    });
+  }
 
   app.post('/admin/policy', async (req, reply) => {
     if (!requireAdmin(req, reply)) return reply;
     const policy = req.body?.policy === 'allowlist' ? 'allowlist' : 'any';
     db.setAcceptPolicy(policy);
     logger.info?.(`admin: accept policy set to ${policy}`);
-    return reply.view('admin', await dashboardModel(req, `Accept policy is now "${policy}".`));
+    return reply.view(
+      'admin/domains',
+      await domainsModel({ notice: `Now accepting mail for ${policy === 'any' ? 'any domain' : 'the allowlist only'}.` }),
+    );
   });
 
   app.post('/admin/domains/add', async (req, reply) => {
@@ -185,23 +295,38 @@ export async function registerAdminRoutes(app) {
       const d = normaliseDomain(piece);
       if (!d) continue;
       if (!/^[a-z0-9.-]+\.[a-z0-9-]+$/i.test(d)) {
-        return reply.code(400).view('admin', await dashboardModel(req, `"${piece}" is not a valid domain.`));
+        return reply.code(400).view('admin/domains', await domainsModel({ error: `"${piece}" is not a valid domain.` }));
       }
       db.addDomain(d);
       added.push(d);
     }
-    const notice = added.length ? `Added ${added.join(', ')}.` : 'Nothing to add.';
-    return reply.view('admin', await dashboardModel(req, notice));
+    return reply.view(
+      'admin/domains',
+      await domainsModel({ notice: added.length ? `Added ${added.join(', ')}.` : 'Nothing to add.' }),
+    );
   });
 
   app.post('/admin/domains/remove', async (req, reply) => {
     if (!requireAdmin(req, reply)) return reply;
     const d = normaliseDomain(req.body?.domain);
     db.removeDomain(d);
-    return reply.view('admin', await dashboardModel(req, `Removed ${d}.`));
+    return reply.view('admin/domains', await domainsModel({ notice: `Removed ${d}.` }));
   });
 
-  // ---------- maintenance ----------
+  // ---------- mailboxes ----------
+
+  app.get('/admin/mailboxes', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+    return reply.view('admin/mailboxes', await mailboxesModel());
+  });
+
+  async function mailboxesModel(extra = {}) {
+    return shell('mailboxes', {
+      title: 'Mailboxes — MailButler admin',
+      mailboxes: db.listMailboxes(),
+      ...extra,
+    });
+  }
 
   app.post('/admin/mailbox/delete', async (req, reply) => {
     if (!requireAdmin(req, reply)) return reply;
@@ -210,8 +335,34 @@ export async function registerAdminRoutes(app) {
     const gc = await blobs.gc(db.referencedHashes());
     logger.info?.(`admin: deleted mailbox ${address} (${removed} messages, ${gc.removed} blobs)`);
     return reply.view(
-      'admin',
-      await dashboardModel(req, `Deleted ${removed} message(s) for ${address} and reclaimed ${gc.removed} blob(s).`),
+      'admin/mailboxes',
+      await mailboxesModel({
+        notice: `Deleted ${removed} message(s) for ${address} and reclaimed ${gc.removed} stored file(s).`,
+      }),
+    );
+  });
+
+  // ---------- storage ----------
+
+  app.get('/admin/storage', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+    return reply.view('admin/storage', await storageModel());
+  });
+
+  async function storageModel(extra = {}) {
+    return shell('storage', {
+      title: 'Storage — MailButler admin',
+      dataDir: config.dataDir,
+      ...extra,
+    });
+  }
+
+  app.post('/admin/gc', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return reply;
+    const gc = await blobs.gc(db.referencedHashes());
+    return reply.view(
+      'admin/storage',
+      await storageModel({ notice: `Reclaimed ${gc.removed} unreferenced file(s), ${fmtBytesPlain(gc.bytes)}.` }),
     );
   });
 
@@ -219,20 +370,38 @@ export async function registerAdminRoutes(app) {
     if (!requireAdmin(req, reply)) return reply;
     // Typed confirmation: purging is not undoable and this is the one destructive control.
     if (String(req.body?.confirm ?? '').trim().toUpperCase() !== 'PURGE') {
-      return reply.code(400).view('admin', await dashboardModel(req, 'Type PURGE to confirm. Nothing was deleted.'));
+      return reply
+        .code(400)
+        .view('admin/storage', await storageModel({ error: 'Type PURGE to confirm. Nothing was deleted.' }));
     }
     const removed = db.purgeAll();
     const gc = await blobs.gc(db.referencedHashes());
     logger.info?.(`admin: purged all mail (${removed} messages, ${gc.removed} blobs)`);
-    return reply.view('admin', await dashboardModel(req, `Purged ${removed} message(s) and freed ${gc.bytes} bytes.`));
-  });
-
-  app.post('/admin/gc', async (req, reply) => {
-    if (!requireAdmin(req, reply)) return reply;
-    const gc = await blobs.gc(db.referencedHashes());
     return reply.view(
-      'admin',
-      await dashboardModel(req, `Reclaimed ${gc.removed} unreferenced blob(s), ${gc.bytes} bytes.`),
+      'admin/storage',
+      await storageModel({ notice: `Purged ${removed} message(s) and freed ${fmtBytesPlain(gc.bytes)}.` }),
     );
   });
+}
+
+/** Echo back what was typed, so a rejected form does not lose the operator's input. */
+function pickSubmitted(body) {
+  const out = {};
+  for (const key of Object.keys(SMTP_SETTINGS)) {
+    if (key in body) out[key] = body[key];
+  }
+  return out;
+}
+
+function fmtBytesPlain(n) {
+  const b = Number(n) || 0;
+  if (b < 1024) return `${b} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let v = b / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 }
