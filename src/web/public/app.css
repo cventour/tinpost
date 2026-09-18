@@ -444,6 +444,8 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
   display: flex; align-items: center; gap: 12px;
   margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
 }
+/* A heading after the form's own actions needs the full gap, not a collapsed one. */
+.section form + h2 { margin-top: 34px; }
 .save-note { color: var(--ink-dim); font-size: 13px; }
 
 @media (max-width: 680px) {
