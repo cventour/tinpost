@@ -110,8 +110,18 @@ main.wide { max-width: 1040px; }
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 700; text-decoration: none; color: var(--ink); letter-spacing: -0.2px; }
-.brand span { color: var(--accent); }
+/* The wordmark is its own type role: 19.5px, a step above anything else in the bar.
+   The separating dot is decoration, not part of the name — it is marked aria-hidden
+   so the product still reads and copies as "Tinpost". */
+.brand {
+  font-weight: 700; text-decoration: none; color: var(--ink);
+  font-size: 19.5px; line-height: 1; letter-spacing: -0.4px;
+}
+.brand-tail { color: var(--accent); }
+.brand-dot {
+  color: var(--ink-dim); font-weight: 400;
+  margin: 0 0.11em;
+}
 .topbar nav { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .nav-link { text-decoration: none; color: var(--accent); }
 .nav-link.subtle { color: var(--ink-dim); }

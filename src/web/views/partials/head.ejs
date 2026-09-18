@@ -20,7 +20,7 @@
 <body>
 <%- include('icons') %>
 <header class="topbar">
-  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span>post</span></a>
+  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span class="brand-dot" aria-hidden="true">·</span><span class="brand-tail">post</span></a>
   <nav>
     <% if (locals.addr) { %>
       <a class="nav-link" href="/compose">Compose</a>

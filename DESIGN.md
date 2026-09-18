@@ -17,6 +17,12 @@ colors:
   ok-bg: "#e9f5ec"
   ok-line: "#4d9f66"
 typography:
+  wordmark:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "19.5px"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.4px"
   display:
     fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
     fontSize: "22px"
@@ -199,7 +205,7 @@ A near-neutral cool grey field with a single confident blue, tuned so the dark
 theme is a re-declaration of the same token names rather than a different palette.
 
 ### Primary
-- **Signal Blue** (`--accent`): Links, the brand's "Butler" half, the unread count, every focus ring, primary buttons, the active ribbon item's icon, and the 5% unread row wash / 22–26% selection and arrival tints via `color-mix`. In dark it lightens to a softer periwinkle so it stays readable on `--panel` without glowing.
+- **Signal Blue** (`--accent`): Links, the wordmark's "post" half, the unread count, every focus ring, primary buttons, the active ribbon item's icon, and the 5% unread row wash / 22–26% selection and arrival tints via `color-mix`. In dark it lightens to a softer periwinkle so it stays readable on `--panel` without glowing.
 - **Accent Ink** (`--accent-ink`): Text on a filled accent surface. Pure white in light, near-black in dark — the pairing flips, the token name does not.
 
 ### Neutral
@@ -234,6 +240,7 @@ it reads as a tool rather than a product, and the only typographic expression is
 weight and case. Base is 15px/1.5 with antialiasing on.
 
 ### Hierarchy
+- **Wordmark** (700, 19.5px, -0.4px tracking): `.brand` in the top bar, and only there. Set in three tones — "Tin" in `--ink`, a `·` separator in `--ink-dim`, "post" in `--accent` — so the mark carries the palette without needing a logo. The dot is decoration and is `aria-hidden`: the product reads and copies as "Tinpost".
 - **Display** (700, 22px, -0.3px tracking): `h1` on webmail panels and login — the page's one title.
 - **Headline** (700, 21px): The message subject in the message view (`.message .subject`).
 - **Title** (700, 18px): `h1` inside an admin section, where the ribbon already says where you are.

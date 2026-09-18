@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## Unreleased
+
+- Changed: the wordmark now reads **Tin·post** and sits about a third larger in the
+  top bar. The dot is decoration only — the product is still called Tinpost, and that
+  is what a screen reader announces and what you get if you copy it.
+
+---
+
 ## v0.2.0 — 18 September 2026
 
 **The tool is now called Tinpost.** MailButler turned out to be a crowded name online.
