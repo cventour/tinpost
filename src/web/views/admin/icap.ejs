@@ -1,0 +1,180 @@
+<%- include('../partials/admin-shell-open') %>
+
+<h1>Attachment scanning</h1>
+<p class="lede">
+  Hand every attachment to an ICAP server &mdash; a virus scanner, a content filter,
+  a sandbox &mdash; and accept the message only if it comes back approved. It applies
+  in both directions: mail arriving over SMTP and mail sent from the webmail go
+  through the same check. A message with no attachment is never scanned.
+</p>
+
+<form method="post" action="/admin/icap">
+  <h2>Scanner</h2>
+
+  <% ['icap_enabled'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <select id="f-<%= key %>" name="<%= key %>">
+          <option value="1" <%= values[key] === '1' ? 'selected' : '' %>>On</option>
+          <option value="0" <%= values[key] === '1' ? '' : 'selected' %>>Off</option>
+        </select>
+      </div>
+    </div>
+  <% }) %>
+
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-icap_host"><%= specs.icap_host.label %></label>
+      <p class="setting-hint"><%= specs.icap_host.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="text" id="f-icap_host" name="icap_host" spellcheck="false"
+             value="<%= values.icap_host %>" maxlength="<%= specs.icap_host.maxLength %>" required>
+    </div>
+  </div>
+
+  <div class="setting">
+    <div>
+      <label class="setting-label" for="f-icap_port"><%= specs.icap_port.label %></label>
+      <p class="setting-hint"><%= specs.icap_port.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="number" id="f-icap_port" name="icap_port" value="<%= values.icap_port %>"
+             min="1" max="65535" required inputmode="numeric">
+    </div>
+  </div>
+
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-icap_service"><%= specs.icap_service.label %></label>
+      <p class="setting-hint"><%= specs.icap_service.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="text" id="f-icap_service" name="icap_service" spellcheck="false"
+             value="<%= values.icap_service %>" maxlength="<%= specs.icap_service.maxLength %>" required>
+    </div>
+  </div>
+
+  <h2>Behaviour</h2>
+
+  <% ['icap_method', 'icap_fail_mode'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <select id="f-<%= key %>" name="<%= key %>">
+          <% spec.choices.forEach(function (choice) { %>
+            <option value="<%= choice[0] %>" <%= values[key] === choice[0] ? 'selected' : '' %>><%= choice[1] %></option>
+          <% }) %>
+        </select>
+      </div>
+    </div>
+  <% }) %>
+
+  <% ['icap_preview', 'icap_timeout'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <input type="number" id="f-<%= key %>" name="<%= key %>" value="<%= values[key] %>"
+               min="<%= spec.min %>" max="<%= spec.max %>" required inputmode="numeric">
+        <% if (spec.unit) { %><span class="unit"><%= spec.unit %></span><% } %>
+      </div>
+    </div>
+  <% }) %>
+
+  <div class="setting">
+    <div>
+      <label class="setting-label" for="f-icap_default"><%= specs.icap_default.label %></label>
+      <p class="setting-hint"><%= specs.icap_default.hint %></p>
+    </div>
+    <div class="setting-control">
+      <select id="f-icap_default" name="icap_default">
+        <option value="1" <%= values.icap_default === '1' ? 'selected' : '' %>>Scanned</option>
+        <option value="0" <%= values.icap_default === '1' ? '' : 'selected' %>>Not scanned</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="btn">Save settings</button>
+    <span class="save-note">Applied to the next message.</span>
+  </div>
+</form>
+
+<h2>Connection</h2>
+<p class="hint">
+  Scanning is configured as <code><%= icapAddress %></code>.
+  The test sends an ICAP <code>OPTIONS</code> request, which is the protocol's own way
+  to ask a service what it is and what it supports. It does not send any mail.
+</p>
+<form method="post" action="/admin/icap/test">
+  <button type="submit" class="btn small">Test the connection</button>
+</form>
+
+<h2>Per-domain</h2>
+<p class="hint">
+  Which domains get scanned. A message is scanned when <em>either</em> side asks for
+  it &mdash; the sender's domain or any recipient's &mdash; so one entry covers a
+  domain's mail in both directions. Anything not listed follows the default above,
+  currently <strong><%= scanByDefault ? 'scanned' : 'not scanned' %></strong>.
+  <% if (policy === 'any') { %>
+    Adding a domain here also puts it on the accept list, which is not consulted while
+    the policy is &ldquo;any domain&rdquo;.
+  <% } %>
+</p>
+
+<form method="post" action="/admin/icap/domain" class="addr-form small">
+  <input type="text" name="domain" placeholder="corp.test" aria-label="Domain" spellcheck="false">
+  <select name="scan" aria-label="Scanning for this domain">
+    <option value="on">Scan</option>
+    <option value="off">Do not scan</option>
+    <option value="inherit">Use the default</option>
+  </select>
+  <button type="submit">Save domain</button>
+</form>
+
+<% if (domains.length) { %>
+  <table class="kv">
+    <% domains.forEach(function (d) { %>
+      <tr>
+        <th><code><%= d.domain %></code></th>
+        <td>
+          <form method="post" action="/admin/icap/domain" class="inline">
+            <input type="hidden" name="domain" value="<%= d.domain %>">
+            <select name="scan" aria-label="Scanning for <%= d.domain %>">
+              <option value="on" <%= d.icapScan === true ? 'selected' : '' %>>Scan</option>
+              <option value="off" <%= d.icapScan === false ? 'selected' : '' %>>Do not scan</option>
+              <option value="inherit" <%= d.icapScan === null ? 'selected' : '' %>>
+                Default (<%= scanByDefault ? 'scan' : 'do not scan' %>)
+              </option>
+            </select>
+            <button type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+<% } else { %>
+  <p class="hint">No domains have a setting of their own, so every domain follows the default.</p>
+<% } %>
+
+<% if (!icapEnabled) { %>
+  <p class="hint">
+    None of this is in force while scanning is off: no message is delayed and nothing
+    is sent to the scanner.
+  </p>
+<% } %>
+
+<%- include('../partials/admin-shell-close') %>

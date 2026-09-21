@@ -16,12 +16,17 @@ export class Delivery extends EventEmitter {
   #db;
   #blobs;
   #maxSize;
+  #scanner;
 
-  constructor({ db, blobs, maxSize }) {
+  constructor({ db, blobs, maxSize, scanner = null }) {
     super();
     this.#db = db;
     this.#blobs = blobs;
     this.#maxSize = maxSize;
+    // Optional ICAP scanner. Sitting here rather than in the SMTP listener is what
+    // makes one check cover both directions: everything that arrives and everything
+    // the webmail sends comes through this class.
+    this.#scanner = scanner;
   }
 
   /**
@@ -95,6 +100,23 @@ export class Delivery extends EventEmitter {
     // how bcc works, and how a message addressed to one header but sent to another
     // still reaches the right mailbox.
     const recipients = mergeRecipients(parsed.recipients, envelopeRecipients);
+
+    // Nothing is written to the index until the scanner has approved the message, so
+    // a rejected one never appears in a mailbox. Its raw blob is already on disk —
+    // the SMTP path streams it there as it arrives — and is reclaimed by the next
+    // pass of blob GC, which keeps only what a row still points at.
+    //
+    // Scanning happens after parsing because that is where the attachments are, and
+    // before the insert because a message that is not approved is not delivered.
+    if (this.#scanner) {
+      await this.#scanner.check({
+        attachments: parsed.attachments,
+        from: parsed.fromAddr,
+        recipients: recipients.map((r) => r.address),
+        origin,
+        subject: parsed.subject,
+      });
+    }
 
     let htmlHash = null;
     if (parsed.html) {

@@ -175,6 +175,13 @@ input[type=text], input[type=email], input[type=password], textarea, input[type=
   font: inherit; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; width: 100%;
 }
+/* Selects carry the on/off and either/or settings, so they match a text field. */
+select {
+  font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+}
+select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 input:focus, textarea:focus, button:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;
 }
@@ -193,6 +200,7 @@ button, .btn {
 .addr-form { display: flex; gap: 8px; flex-wrap: wrap; }
 .addr-form input { flex: 1 1 260px; }
 .addr-form.small input { flex: 1 1 200px; }
+.addr-form select { flex: 0 0 auto; }
 
 .field { display: block; margin-bottom: 14px; }
 .field > span { display: block; font-size: 13px; color: var(--ink-dim); margin-bottom: 4px; }

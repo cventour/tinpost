@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { normaliseAddress, domainOf } from '../db.js';
 import { htmlToText } from '../parse.js';
+import { ScanRejected } from '../scan.js';
 
 const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -369,17 +370,35 @@ export async function registerMailRoutes(app) {
 
     const asHtml = fields.format === 'html';
     const body = fields.text ?? '';
-    const summaryMsg = await delivery.deliverComposed({
-      from: addr,
-      to,
-      cc,
-      subject: fields.subject ?? '',
-      text: asHtml ? htmlToText(body) : body,
-      html: asHtml ? body : null,
-      attachments,
-      inReplyTo: fields.inReplyTo || null,
-      references: fields.references || null,
-    });
+    let summaryMsg;
+    try {
+      summaryMsg = await delivery.deliverComposed({
+        from: addr,
+        to,
+        cc,
+        subject: fields.subject ?? '',
+        text: asHtml ? htmlToText(body) : body,
+        html: asHtml ? body : null,
+        attachments,
+        inReplyTo: fields.inReplyTo || null,
+        references: fields.references || null,
+      });
+    } catch (err) {
+      // Outbound mail goes through the same scanner as inbound, so a blocked
+      // attachment comes back as an error on the form the draft was typed into
+      // rather than as a 500 that loses it.
+      if (err instanceof ScanRejected) {
+        return renderComposeError(
+          reply,
+          addr,
+          fields,
+          err.temporary
+            ? `${err.message}. The message was not sent; try again once the scanner is back.`
+            : `${err.message}. The message was not sent.`,
+        );
+      }
+      throw err;
+    }
 
     return reply.redirect(`/mail/${summaryMsg.id}?sent=1`);
   });
