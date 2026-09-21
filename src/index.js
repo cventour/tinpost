@@ -2,6 +2,7 @@ import { loadConfig } from './config.js';
 import { Db } from './db.js';
 import { BlobStore } from './blobstore.js';
 import { Delivery } from './delivery.js';
+import { Scanner } from './scan.js';
 import { readSetting } from './settings.js';
 import {
   defaultSmtpPort,
@@ -36,7 +37,10 @@ export async function start(flags = {}, { logger = console } = {}) {
   if (!config.httpPortExplicit) storedPorts.httpPort = readSetting(db, 'http_port');
   if (Object.keys(storedPorts).length) config = loadConfig({ ...flags, ...storedPorts });
   const blobs = new BlobStore(config);
-  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize });
+  // The scanner reads its settings per message, so it is built unconditionally and
+  // does nothing at all while ICAP scanning is switched off.
+  const scanner = new Scanner({ db, logger });
+  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner });
 
   // An explicit --max-size is an instruction, so it seeds the stored setting that
   // the admin page edits. Without the flag, the stored setting stands.
@@ -95,6 +99,7 @@ export async function start(flags = {}, { logger = console } = {}) {
     db,
     blobs,
     delivery,
+    scanner,
     ports,
     privilege,
     portNotice: notice,
@@ -107,4 +112,4 @@ export async function start(flags = {}, { logger = console } = {}) {
   };
 }
 
-export { loadConfig, Db, BlobStore, Delivery };
+export { loadConfig, Db, BlobStore, Delivery, Scanner };

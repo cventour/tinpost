@@ -83,22 +83,118 @@ export const SMTP_SETTINGS = {
 };
 
 /**
+ * The ICAP scanning settings: where the scanner is, how patient to be with it, and
+ * what to do when it cannot be reached.
+ *
+ * Kept as its own group because it is its own admin page, but it goes through the
+ * same validate-and-store machinery as the SMTP limits below.
+ */
+export const ICAP_SETTINGS = {
+  icap_enabled: {
+    label: 'Scan attachments with ICAP',
+    hint: 'While this is off, nothing is sent to a scanner and no message is held up. Messages with no attachment are never scanned either way.',
+    type: 'bool',
+    default: 0,
+  },
+  icap_host: {
+    label: 'ICAP server address',
+    hint: 'The host name or IP address of the scanning service.',
+    type: 'host',
+    default: '127.0.0.1',
+    maxLength: 253,
+  },
+  icap_port: {
+    label: 'ICAP port',
+    hint: 'The standard ICAP port is 1344.',
+    type: 'port',
+    default: 1344,
+    min: 1,
+    max: 65535,
+  },
+  icap_service: {
+    label: 'Service path',
+    hint: 'The service to ask, as the server names it — c-icap calls one "/avscan", others "/virus_scan" or "/respmod". A full icap://host:port/service URL works too, and its host and port then win over the fields above.',
+    type: 'service',
+    default: '/avscan',
+    maxLength: 300,
+  },
+  icap_method: {
+    label: 'ICAP method',
+    hint: 'RESPMOD presents each attachment as a download, which is what virus scanners expect. REQMOD presents it as an upload; use it only if your service handles that method alone.',
+    type: 'choice',
+    choices: [
+      ['respmod', 'RESPMOD'],
+      ['reqmod', 'REQMOD'],
+    ],
+    default: 'respmod',
+  },
+  icap_preview: {
+    label: 'Preview size',
+    hint: 'Send this many bytes first and let the scanner ask for the rest only if it needs them. 0 sends the whole attachment straight away, which every server accepts.',
+    unit: 'bytes',
+    type: 'int',
+    default: 0,
+    min: 0,
+    max: 1024 * 1024,
+  },
+  icap_timeout: {
+    label: 'Scan timeout',
+    hint: 'How long to wait for a verdict on one attachment before treating the scan as failed.',
+    unit: 'seconds',
+    type: 'int',
+    scale: 1000,
+    default: 10,
+    min: 1,
+    max: 300,
+  },
+  icap_fail_mode: {
+    label: 'If no verdict comes back',
+    hint: 'Covers a scanner that is down, one that does not answer in time, and one that answers with an error. Refuse is the safe answer: an unscanned message is not an approved message. Deliver anyway keeps the lab moving, and says so in the log. A message the scanner actually refuses is always rejected, whichever of these is set.',
+    type: 'choice',
+    choices: [
+      ['closed', 'Refuse the message'],
+      ['open', 'Deliver it anyway'],
+    ],
+    default: 'closed',
+  },
+  icap_default: {
+    label: 'Domains with no setting of their own',
+    hint: 'Applies to every sender and recipient domain that has no entry below — which, with the accept policy set to any domain, is most of them.',
+    type: 'bool',
+    default: 1,
+  },
+};
+
+/** Every setting, whichever page edits it. */
+export const SETTINGS = { ...SMTP_SETTINGS, ...ICAP_SETTINGS };
+
+/**
  * Read one setting in its stored form: bytes and milliseconds where the spec says
  * so, plain values otherwise. Falls back to the default when unset or corrupt.
  */
 export function readSetting(db, key) {
-  const spec = SMTP_SETTINGS[key];
+  const spec = SETTINGS[key];
   if (!spec) throw new Error(`unknown setting: ${key}`);
 
   const raw = db.getSetting(key);
-  if (raw === null || raw === '') return scaleUp(spec, spec.default);
+  if (raw === null || raw === '') return normalise(spec, spec.default);
 
   if (spec.type === 'int' || spec.type === 'port') {
     const n = Number.parseInt(raw, 10);
-    if (!Number.isInteger(n) || n < spec.min || n > spec.max) return scaleUp(spec, spec.default);
+    if (!Number.isInteger(n) || n < spec.min || n > spec.max) return normalise(spec, spec.default);
     return scaleUp(spec, n);
   }
+  if (spec.type === 'bool') return raw === '1' || raw === 'true' || raw === 'on';
+  if (spec.type === 'choice') {
+    return spec.choices.some(([value]) => value === raw) ? raw : spec.default;
+  }
   return raw;
+}
+
+/** A default is written in the same shape a stored value reads back as. */
+function normalise(spec, value) {
+  if (spec.type === 'bool') return value === 1 || value === true || value === '1';
+  return scaleUp(spec, value);
 }
 
 /** MB to bytes, seconds to milliseconds; a plain value passes through. */
@@ -108,22 +204,23 @@ function scaleUp(spec, value) {
 
 /** The display value, i.e. MB and seconds rather than bytes and milliseconds. */
 export function readDisplayValue(db, key) {
-  const spec = SMTP_SETTINGS[key];
+  const spec = SETTINGS[key];
   const stored = readSetting(db, key);
+  if (spec.type === 'bool') return stored ? '1' : '0';
   return spec.scale ? Math.round(stored / spec.scale) : stored;
 }
 
 /** Every setting in display form, for rendering the form. */
 export function readAllDisplay(db) {
   const out = {};
-  for (const key of Object.keys(SMTP_SETTINGS)) out[key] = readDisplayValue(db, key);
+  for (const key of Object.keys(SETTINGS)) out[key] = readDisplayValue(db, key);
   return out;
 }
 
 /** Every setting in stored form, for handing to the listener. */
 export function readAllEffective(db) {
   const out = {};
-  for (const key of Object.keys(SMTP_SETTINGS)) out[key] = readSetting(db, key);
+  for (const key of Object.keys(SETTINGS)) out[key] = readSetting(db, key);
   return out;
 }
 
@@ -132,10 +229,51 @@ export function readAllEffective(db) {
  * with a message that names the bound rather than just rejecting.
  */
 export function validateSetting(key, input) {
-  const spec = SMTP_SETTINGS[key];
+  const spec = SETTINGS[key];
   if (!spec) return { ok: false, error: `Unknown setting ${key}.` };
 
   const raw = String(input ?? '').trim();
+
+  if (spec.type === 'bool') {
+    const on = raw === '1' || raw === 'true' || raw === 'on' || raw === 'yes';
+    const off = raw === '0' || raw === 'false' || raw === 'off' || raw === 'no' || raw === '';
+    if (!on && !off) return { ok: false, error: `${spec.label} must be on or off.` };
+    return { ok: true, value: on ? '1' : '0' };
+  }
+
+  if (spec.type === 'choice') {
+    if (!spec.choices.some(([value]) => value === raw)) {
+      return { ok: false, error: `${spec.label} must be one of ${spec.choices.map(([v]) => v).join(', ')}.` };
+    }
+    return { ok: true, value: raw };
+  }
+
+  if (spec.type === 'host') {
+    if (!raw) return { ok: false, error: `${spec.label} cannot be empty.` };
+    if (raw.length > spec.maxLength) return { ok: false, error: `${spec.label} is too long.` };
+    // A host name, an IPv4 address, or an IPv6 literal. It ends up in a protocol
+    // header, so anything that could break the line out of it is refused.
+    if (!/^[A-Za-z0-9._:\[\]-]+$/.test(raw)) {
+      return { ok: false, error: `${spec.label} is not a valid host name or IP address.` };
+    }
+    return { ok: true, value: raw };
+  }
+
+  if (spec.type === 'service') {
+    if (!raw) return { ok: false, error: `${spec.label} cannot be empty.` };
+    if (raw.length > spec.maxLength) return { ok: false, error: `${spec.label} is too long.` };
+    if (/[\s\r\n]/.test(raw)) return { ok: false, error: `${spec.label} cannot contain spaces.` };
+    if (/^icaps?:\/\//i.test(raw)) {
+      try {
+        const url = new URL(raw.replace(/^icaps:/i, 'icap:'));
+        if (!url.hostname) throw new Error('no host');
+      } catch {
+        return { ok: false, error: `${spec.label} looks like a URL but is not a valid one.` };
+      }
+      return { ok: true, value: raw };
+    }
+    return { ok: true, value: raw.startsWith('/') ? raw : `/${raw}` };
+  }
 
   if (spec.type === 'int' || spec.type === 'port') {
     if (!/^\d+$/.test(raw)) return { ok: false, error: `${spec.label} must be a whole number.` };
@@ -170,7 +308,7 @@ export function validateSetting(key, input) {
 
 /** The settings that only take effect at the next start. */
 export function restartOnlyKeys() {
-  return Object.keys(SMTP_SETTINGS).filter((k) => SMTP_SETTINGS[k].restart);
+  return Object.keys(SETTINGS).filter((k) => SETTINGS[k].restart);
 }
 
 /**
@@ -182,7 +320,7 @@ export function pendingRestart(db, running) {
   for (const key of restartOnlyKeys()) {
     const saved = readSetting(db, key);
     if (running[key] !== undefined && running[key] !== saved) {
-      pending.push({ key, label: SMTP_SETTINGS[key].label, saved, running: running[key] });
+      pending.push({ key, label: SETTINGS[key].label, saved, running: running[key] });
     }
   }
   return pending;
@@ -191,7 +329,7 @@ export function pendingRestart(db, running) {
 /** Validate and store a whole submitted form. Nothing is written unless all of it passes. */
 export function saveSettings(db, body) {
   const staged = [];
-  for (const key of Object.keys(SMTP_SETTINGS)) {
+  for (const key of Object.keys(SETTINGS)) {
     if (!(key in body)) continue;
     const result = validateSetting(key, body[key]);
     if (!result.ok) return { ok: false, error: result.error };

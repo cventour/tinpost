@@ -110,7 +110,9 @@ try {
   process.exit(1);
 }
 
-const { config, ports, portNotice, privilege } = instance;
+const { config, db, ports, portNotice, privilege } = instance;
+const { icapConfig, icapAddress } = await import('./scan.js');
+const icap = icapConfig(db);
 const displayHost = config.host === '0.0.0.0' || config.host === '::' ? 'localhost' : config.host;
 
 console.log(`
@@ -119,7 +121,11 @@ console.log(`
   Webmail   http://${displayHost}:${ports.http}
   Admin     http://${displayHost}:${ports.http}/admin   (no password)
   SMTP      ${config.host}:${ports.smtp}${ports.smtp === 25 ? '      ' : '   '}(no AUTH, no TLS)
-  Data      ${config.dataDir}
+  Data      ${config.dataDir}${
+  icap.enabled
+    ? `\n  Scanning  ${icapAddress(icap)}   (attachments, ${icap.failMode === 'open' ? 'delivered if the scanner is down' : 'refused if the scanner is down'})`
+    : ''
+}
 `);
 
 if (config.host !== '127.0.0.1' && config.host !== 'localhost' && config.host !== '::1') {

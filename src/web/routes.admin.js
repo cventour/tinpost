@@ -1,11 +1,14 @@
 import { normaliseDomain } from '../db.js';
 import {
   SMTP_SETTINGS,
+  ICAP_SETTINGS,
+  SETTINGS,
   readAllDisplay,
   saveSettings,
   pendingRestart,
   checkPortAvailable,
 } from '../settings.js';
+import { testConnection, icapConfig, icapAddress } from '../scan.js';
 import {
   checkDataDir,
   writePointer,
@@ -174,6 +177,87 @@ export async function registerAdminRoutes(app) {
     return reply.view('admin/domains', await domainsModel({ notice: `Removed ${d}.` }));
   });
 
+  // ---------- ICAP ----------
+
+  app.get('/admin/icap', async (req, reply) => {
+    return reply.view('admin/icap', await icapModel());
+  });
+
+  async function icapModel(extra = {}) {
+    const config = icapConfig(db);
+    return shell('icap', {
+      title: 'Attachment scanning — Tinpost admin',
+      specs: ICAP_SETTINGS,
+      values: readAllDisplay(db),
+      icapAddress: icapAddress(config),
+      icapEnabled: config.enabled,
+      scanByDefault: config.scanByDefault,
+      // Domains that carry a scanning setting of their own, plus the allowlist, since
+      // one list of domains is easier to reason about than two.
+      domains: db.listDomainSettings(),
+      policy: db.getAcceptPolicy(),
+      test: null,
+      ...extra,
+    });
+  }
+
+  app.post('/admin/icap', async (req, reply) => {
+    const body = req.body ?? {};
+    const result = saveSettings(db, body);
+    if (!result.ok) {
+      const values = { ...readAllDisplay(db), ...pickSubmitted(body) };
+      return reply.code(400).view('admin/icap', await icapModel({ error: result.error, values }));
+    }
+    logger.info?.('admin: ICAP settings updated');
+    const config = icapConfig(db);
+    return reply.view(
+      'admin/icap',
+      await icapModel({
+        notice: config.enabled
+          ? `Saved. Attachments are now scanned by ${icapAddress(config)} before a message is accepted.`
+          : 'Saved. Attachment scanning is off, so nothing is sent to a scanner.',
+      }),
+    );
+  });
+
+  /**
+   * Prove the scanner answers, without having to send a message through. An ICAP
+   * OPTIONS request is the protocol's own way to ask, and it also reports which
+   * methods the service supports — the usual reason a correct address still fails.
+   */
+  app.post('/admin/icap/test', async (req, reply) => {
+    const result = await testConnection(db);
+    logger.info?.(`admin: ICAP test ${result.ok ? 'succeeded' : 'failed'} for ${result.where}`);
+    return reply.view(
+      'admin/icap',
+      await icapModel(result.ok ? { notice: result.detail } : { error: result.error }),
+    );
+  });
+
+  app.post('/admin/icap/domain', async (req, reply) => {
+    const domain = normaliseDomain(req.body?.domain);
+    const choice = String(req.body?.scan ?? 'inherit');
+
+    if (!domain || !/^[a-z0-9.-]+\.[a-z0-9-]+$/i.test(domain)) {
+      return reply
+        .code(400)
+        .view('admin/icap', await icapModel({ error: `"${req.body?.domain ?? ''}" is not a valid domain.` }));
+    }
+    if (!['on', 'off', 'inherit'].includes(choice)) {
+      return reply.code(400).view('admin/icap', await icapModel({ error: 'Choose on, off, or the default.' }));
+    }
+
+    db.setDomainIcap(domain, choice === 'inherit' ? null : choice === 'on');
+    logger.info?.(`admin: ICAP scanning for ${domain} set to ${choice}`);
+
+    const wording = {
+      on: `Mail to and from ${domain} is scanned.`,
+      off: `Mail to and from ${domain} is never scanned.`,
+      inherit: `${domain} now follows the default, which is ${icapConfig(db).scanByDefault ? 'to scan' : 'not to scan'}.`,
+    };
+    return reply.view('admin/icap', await icapModel({ notice: wording[choice] }));
+  });
+
   // ---------- mailboxes ----------
 
   app.get('/admin/mailboxes', async (req, reply) => {
@@ -300,7 +384,7 @@ export async function registerAdminRoutes(app) {
 /** Echo back what was typed, so a rejected form does not lose the operator's input. */
 function pickSubmitted(body) {
   const out = {};
-  for (const key of Object.keys(SMTP_SETTINGS)) {
+  for (const key of Object.keys(SETTINGS)) {
     if (key in body) out[key] = body[key];
   }
   return out;

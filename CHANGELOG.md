@@ -6,6 +6,29 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- New: **attachments can be scanned by an ICAP server before a message is accepted.**
+  Point Tinpost at a virus scanner or content filter — address, port and service path,
+  under **Scanning** on the admin page — and every attachment is sent for a verdict
+  first. Nothing is delivered unless the scanner approves it: over SMTP the sender
+  gets a `550` naming the threat and the file, and from the webmail the compose form
+  says the same and keeps the draft. It covers both directions, because mail arriving
+  over SMTP and mail sent from the webmail go through the same check. **A message with
+  no attachment is never scanned**, so plain mail is never delayed. If the scanner
+  cannot be reached the message is refused with a `451` — an unscanned message is not
+  an approved one — and you can switch that to deliver anyway if the lab matters more
+  than the verdict. Scanning is configurable **per domain** as well as globally, and a
+  message is scanned when either side asks for it. There is a "Test the connection"
+  button that asks the service what it supports without sending any mail.
+
+  The verdict is read from the scanner's `X-Response-Info` header where it sets one,
+  because the ICAP status line is not reliable across products: MetaDefender ICAP
+  Server answers with a `200` both for a file it refused and for one it merely
+  sanitised. A sanitised file is therefore delivered rather than rejected — as the
+  original, since Tinpost stores mail as it arrived, which the log says on every such
+  message. And a misconfigured scanner is refused with a `550` rather than a `451`: a
+  wrong service path does not come right on a retry, so the sender is told plainly
+  instead of being asked to queue forever.
+
 - New: **the data directory can be set from the Storage page**, instead of only with
   `--data-dir`. It is created if it does not exist and proven writable before it is
   saved, so a bad path is refused on the page rather than discovered as a server that

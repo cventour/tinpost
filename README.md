@@ -141,9 +141,61 @@ From there you can:
   list of accepted domains. Under the allowlist, other domains are refused at the
   SMTP layer with a `550`, exactly as a real MTA would, so a client under test sees a
   realistic failure. The compose form honours the same rule.
+- Point Tinpost at an **ICAP server** and have every attachment scanned before a
+  message is accepted &mdash; see below.
 - See every mailbox with its message counts, open one, or delete its mail.
 - See how much disk the stored files use, reclaim space, or purge everything to reset
   the lab between runs.
+
+## Attachment scanning over ICAP
+
+Tinpost can hand every attachment to an ICAP server — a virus scanner such as c-icap
+with ClamAV, a commercial content filter, a sandbox — and accept the message only if
+it comes back approved. The same check covers both directions: mail arriving over
+SMTP and mail sent from the webmail go through it.
+
+Turn it on under **Scanning** on the admin page and give it the address, port and
+service path of your ICAP server (the standard port is 1344; c-icap typically calls
+its scanning service `/avscan`). The field also accepts a whole
+`icap://host:port/service` URL, which then supplies the host and port itself. "Test
+the connection" sends an ICAP `OPTIONS` request and reports what the service says it
+supports, without sending any mail.
+
+What happens then:
+
+- A message **with no attachment is never scanned**. There is nothing for a scanner
+  to look at, and no message is delayed for one. Inline images count as attachments
+  here: they are files a message carries, whatever a mail client chooses to show.
+- Each attachment is sent on its own, as a `RESPMOD` request (or `REQMOD` if that is
+  all your service does), wrapped in the synthetic HTTP message the protocol requires.
+  `Preview` is supported: set one and only the first N bytes go over first, with the
+  rest following if the scanner asks for them.
+- The verdict is read from the `X-Response-Info` header where the scanner sets one,
+  because the status line is not reliable across products: MetaDefender ICAP Server
+  answers `RESPMOD` with a `200` whether it refused the file or merely rewrote it, and
+  reserves `403` for a method Tinpost does not use. Where there is no such header, a
+  `204` is clean, a `403` is a refusal, and a `200` carrying replacement content is
+  read as one too.
+- A refusal stops the message. Over SMTP the sender gets a `550` naming the threat and
+  the file; from the webmail the compose form says the same and keeps the draft.
+- A file the scanner **sanitised or redacted** rather than refused is approved, and is
+  delivered. Tinpost stores mail exactly as it arrived and has nowhere to put a
+  rewritten MIME part, so what lands is the original, not the scanner's cleaned copy —
+  and the log says so on every such message.
+- If **no verdict comes back** — the scanner is down, times out, or returns an error —
+  the default is to refuse the message, and you can switch that to deliver anyway,
+  which is then said plainly in the log. A scanner that is merely unreachable gets a
+  `451`, a real MTA's "come back later". A **misconfiguration** gets a `550` instead:
+  a wrong service path or an unsupported method will not fix itself on a retry, and
+  answering `451` would hide the fault behind a queue that never drains. The message
+  names the fix.
+- Nothing is written to a mailbox until the verdict is in, so a refused message never
+  appears anywhere. Its raw file is cleaned up by the next pass of "Reclaim space".
+
+Scanning is configured **per domain** as well. Each domain can be set to scan, not to
+scan, or to follow the global default, and a message is scanned when either side asks
+for it — the sender's domain or any recipient's — so one entry covers a domain's mail
+in both directions.
 
 ## Options
 
@@ -230,6 +282,9 @@ Within that model, the reader is protected from the mail:
 - Attachments are always served as downloads with a neutral content type and
   `nosniff`, so nothing executes in the browser
 - Stored files are named by content hash, so hostile filenames cannot traverse paths
+- Sender-chosen text sent to an ICAP server (attachment names, addresses, subject)
+  is stripped of line breaks and quotes, so a hostile message cannot forge a
+  protocol header
 
 Do not put real credentials or real personal data into it, and do not expose it to an
 untrusted network.

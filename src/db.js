@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS messages (
@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS domains (
   domain     TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  -- Per-domain ICAP scanning: 1 on, 0 off, NULL to follow the global default.
+  icap_scan  INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_recipients_address ON recipients(address);
@@ -72,6 +74,7 @@ export class Db {
     this.#db.exec('PRAGMA journal_mode = WAL');
     this.#db.exec('PRAGMA foreign_keys = ON');
     this.#db.exec(SCHEMA);
+    this.#migrate();
     this.#db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     this.#bootstrapSettings();
   }
@@ -82,6 +85,21 @@ export class Db {
 
   get raw() {
     return this.#db;
+  }
+
+  /**
+   * Bring a database written by an older version up to date.
+   *
+   * `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
+   * column added after the fact has to be added explicitly. Checked by inspection
+   * rather than by version number, because a user_version of 0 is also what a
+   * database from before versioning looks like.
+   */
+  #migrate() {
+    const columns = this.#db.prepare('PRAGMA table_info(domains)').all().map((c) => c.name);
+    if (!columns.includes('icap_scan')) {
+      this.#db.exec('ALTER TABLE domains ADD COLUMN icap_scan INTEGER');
+    }
   }
 
   #bootstrapSettings() {
@@ -132,6 +150,39 @@ export class Db {
 
   removeDomain(domain) {
     this.#db.prepare('DELETE FROM domains WHERE domain = ?').run(normaliseDomain(domain));
+  }
+
+  /** Every domain with its scanning override, for the ICAP page. */
+  listDomainSettings() {
+    return this.#db
+      .prepare('SELECT domain, icap_scan FROM domains ORDER BY domain')
+      .all()
+      .map((r) => ({ domain: r.domain, icapScan: r.icap_scan === null ? null : !!r.icap_scan }));
+  }
+
+  /**
+   * Set (or clear) this domain's scanning override. `null` means "follow the global
+   * default"; the row is created if the domain is not known yet, so scanning can be
+   * configured for a domain without also having to allowlist it first.
+   */
+  setDomainIcap(domain, value) {
+    const d = normaliseDomain(domain);
+    if (!d) throw new Error('empty domain');
+    const stored = value === null || value === undefined ? null : value ? 1 : 0;
+    this.#db
+      .prepare(
+        `INSERT INTO domains (domain, created_at, icap_scan) VALUES (?, ?, ?)
+           ON CONFLICT(domain) DO UPDATE SET icap_scan = excluded.icap_scan`,
+      )
+      .run(d, new Date().toISOString(), stored);
+    return d;
+  }
+
+  /** This domain's override, or `null` when it has none. */
+  getDomainIcap(domain) {
+    const row = this.#db.prepare('SELECT icap_scan FROM domains WHERE domain = ?').get(normaliseDomain(domain));
+    if (!row || row.icap_scan === null || row.icap_scan === undefined) return null;
+    return !!row.icap_scan;
   }
 
   /** True when mail for this recipient should be accepted under the current policy. */

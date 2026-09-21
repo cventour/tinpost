@@ -1,5 +1,6 @@
 import { SMTPServer } from 'smtp-server';
 import { MaxSizeExceeded } from './blobstore.js';
+import { ScanRejected } from './scan.js';
 import { domainOf } from './db.js';
 import { readAllEffective } from './settings.js';
 
@@ -122,6 +123,19 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
           if (refused || session.mbAborted) return;
           // The blob store hit the same ceiling from its side.
           if (err instanceof MaxSizeExceeded) return refuseOversize();
+
+          // The ICAP scanner did not approve it. A virus is a permanent refusal, so
+          // the sender is told 550 and does not retry; a scanner that could not be
+          // reached is 451, which is a real MTA's "come back later" and is exactly
+          // what an unscanned message deserves.
+          if (err instanceof ScanRejected) {
+            const e = new Error(err.message);
+            e.responseCode = err.temporary ? 451 : 550;
+            logger.info?.(
+              `smtp: refused a message from ${session.envelope?.mailFrom?.address ?? 'unknown'} (${err.message})`,
+            );
+            return callback(e);
+          }
 
           logger.error?.(`smtp: delivery failed: ${err.stack || err.message}`);
           const e = new Error('Local error processing message');
