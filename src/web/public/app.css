@@ -519,3 +519,95 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
 /* The port warning carries a headline and a remedy; the headline leads. */
 .port-warn { margin-top: 18px; }
 .port-warn strong { display: block; margin-bottom: 2px; }
+
+/* ---------------------------------------------------------------
+   Log viewer
+
+   A console pane rather than a page of prose: monospace, dense line
+   height, and a dark-on-light or light-on-dark field of its own that
+   does not change with the surrounding theme's panel colour.
+   --------------------------------------------------------------- */
+
+.log-filters {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+  margin-bottom: 12px;
+}
+.log-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.log-field > span { font-size: 12px; color: var(--ink-dim); }
+.log-field.grow { flex: 1 1 260px; }
+.log-field.grow input { width: 100%; }
+
+.log-search {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px;
+  /* Its own row: the find box is the control that gets used, and pinning it beside
+     the two selects leaves it too narrow to read a log line's worth of query. */
+  flex: 1 1 100%; min-width: 0;
+}
+.log-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--ink-dim); white-space: nowrap;
+  padding-bottom: 5px;
+}
+.log-check input { margin: 0; }
+
+.log-count {
+  margin: 0 0 5px; font-size: 13px; color: var(--ink-dim);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.log-count.none { color: var(--err-line); }
+
+.log-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+/* Push the destructive control away from the ones pressed casually. */
+.log-bar .danger-form, .log-bar form:last-child { margin-left: auto; }
+.log-state { font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.log-dropped { margin: 0 0 8px; }
+
+.log-view {
+  height: 58vh; min-height: 260px; overflow: auto;
+  background: var(--sunk);
+  border: 1px solid var(--line); border-radius: 6px;
+  /* The buffer scrolls under its own ruling, so the gutter needs no padding. */
+  padding: 6px 0;
+}
+.log-lines { list-style: none; margin: 0; padding: 0; }
+
+.log-line {
+  display: grid; grid-template-columns: 7ch 5.5ch minmax(0, 1fr);
+  gap: 0 10px; align-items: baseline;
+  padding: 1px 12px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+}
+.log-line:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.log-line[hidden] { display: none; }
+.log-line time { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.log-level { color: var(--ink-dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+/* Stack traces arrive as one record with newlines in it, so the text cell wraps
+   and keeps them rather than running everything onto one line. */
+.log-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.log-line.lv-error .log-level, .log-line.lv-error .log-text { color: var(--err-line); }
+.log-line.lv-warn .log-level, .log-line.lv-warn .log-text { color: var(--warn-line); }
+.log-line.lv-debug { color: var(--ink-dim); }
+.log-line.lv-debug .log-text { color: var(--ink-dim); }
+/* Shown but not matching, while "matching lines only" is off. */
+.log-line.log-dim { opacity: 0.45; }
+
+.log-line mark {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+  color: inherit; border-radius: 2px; padding: 0 1px;
+}
+.log-line.log-new { animation: log-flash 1.2s ease-out; }
+@keyframes log-flash {
+  from { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  to { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .log-line.log-new { animation: none; } }
+
+@media (max-width: 680px) {
+  .log-line { grid-template-columns: 7ch minmax(0, 1fr); }
+  .log-level { display: none; }
+  .log-bar form:last-child { margin-left: 0; }
+}

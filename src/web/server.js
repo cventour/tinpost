@@ -7,6 +7,7 @@ import fastifyFormbody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyView from '@fastify/view';
 import ejs from 'ejs';
+import { LogBuffer } from '../logbuf.js';
 import { registerMailRoutes } from './routes.mail.js';
 import { registerAdminRoutes } from './routes.admin.js';
 
@@ -21,6 +22,10 @@ export async function createWebServer({
   privilege = null,
   portNotice = null,
   logger = console,
+  // A buffer of its own when none is handed in, so the Logs page is always there —
+  // a test that builds only the web layer still gets a working one, just an empty
+  // one until something writes to it.
+  logs = new LogBuffer(),
 }) {
   const app = Fastify({ logger: false, bodyLimit: config.maxSize });
 
@@ -36,7 +41,7 @@ export async function createWebServer({
     defaultContext: { fmtBytes, fmtDate, escapeHtml },
   });
 
-  app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger });
+  app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger, logs });
 
   // Two static assets only. Serving them as explicit routes rather than pulling in
   // a static-file plugin keeps the path-traversal surface at exactly zero.

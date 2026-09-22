@@ -358,7 +358,258 @@
     input.addEventListener('focus', function () { if (input.value.trim()) suggest(false); });
   }
 
+  /* ---------- log viewer ---------- */
+
+  /* The admin Logs page. Two jobs that stay deliberately apart:
+
+     The filter is entirely local. It runs on every keystroke over lines that are
+     already in the page, so it never waits for the network — that is what makes
+     "type a few characters and see them light up" feel immediate. Channel and level
+     are the opposite: they are query parameters, the form submits them, and the
+     page comes back filtered. Those change rarely and belong in a URL.
+
+     The tail asks only for lines newer than the last sequence number it has seen,
+     so a running viewer transfers a line once and never re-renders what is already
+     on screen. */
+  function initLogViewer(root) {
+    var LOG_POLL_MS = 2000;
+    var MAX_ROWS = 4000; // what the page will hold before dropping from the top
+
+    var list = root.querySelector('[data-log-lines]');
+    var empty = root.querySelector('[data-log-empty]');
+    var filters = document.querySelector('[data-log-filters]');
+    var input = document.querySelector('[data-log-filter]');
+    var regexBox = document.querySelector('[data-log-regex]');
+    var onlyBox = document.querySelector('[data-log-only]');
+    var followBox = document.querySelector('[data-log-follow]');
+    var stateEl = document.querySelector('[data-log-state]');
+    var countEl = document.querySelector('[data-log-count]');
+    var refreshLink = document.querySelector('[data-log-refresh]');
+
+    var cursor = parseInt(root.getAttribute('data-cursor') || '0', 10) || 0;
+    var channel = root.getAttribute('data-channel') || 'all';
+    var level = root.getAttribute('data-level') || 'debug';
+    var timer = null;
+    var fetching = false;
+
+    /* ----- filtering and highlighting ----- */
+
+    function escapeRe(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /* The compiled query, or null for "no filter", or an error to show. A bad
+       regular expression is reported rather than silently matching nothing —
+       half-typed patterns are the normal state of a box being typed into. */
+    function matcher() {
+      var text = input ? input.value : '';
+      if (!text) return { re: null };
+      var source = regexBox && regexBox.checked ? text : escapeRe(text);
+      try {
+        return { re: new RegExp(source, 'gi') };
+      } catch (e) {
+        return { error: 'not a valid regular expression' };
+      }
+    }
+
+    /* Rebuild one line's text, wrapping each match in <mark>. Always starts from
+       data-text, never from the last pass's markup, so highlights cannot nest or
+       accumulate as the query is edited. */
+    function paint(li, re) {
+      var text = li.getAttribute('data-text') || '';
+      var cell = li.querySelector('.log-text');
+      if (!re) {
+        cell.textContent = text;
+        return true;
+      }
+
+      re.lastIndex = 0;
+      var out = '';
+      var at = 0;
+      var hit = false;
+      var m;
+      while ((m = re.exec(text)) !== null) {
+        hit = true;
+        out += esc(text.slice(at, m.index)) + '<mark>' + esc(m[0]) + '</mark>';
+        at = m.index + m[0].length;
+        // A pattern that can match nothing would otherwise spin here forever.
+        if (m[0].length === 0) re.lastIndex += 1;
+      }
+      if (!hit) {
+        cell.textContent = text;
+        return false;
+      }
+      cell.innerHTML = out + esc(text.slice(at));
+      return true;
+    }
+
+    function applyFilter() {
+      var q = matcher();
+      var only = !onlyBox || onlyBox.checked;
+      var rows = list.children;
+      var matched = 0;
+
+      for (var i = 0; i < rows.length; i += 1) {
+        var li = rows[i];
+        var hit = paint(li, q.error ? null : q.re);
+        if (hit) matched += 1;
+        // With no query every line matches, so nothing is hidden or dimmed.
+        var filtering = !!q.re && !q.error;
+        li.hidden = filtering && only && !hit;
+        li.classList.toggle('log-dim', filtering && !only && !hit);
+      }
+
+      if (input) input.setAttribute('aria-invalid', q.error ? 'true' : 'false');
+      if (countEl) {
+        if (q.error) countEl.textContent = q.error;
+        else if (!q.re) countEl.textContent = rows.length ? rows.length + ' lines' : '';
+        else countEl.textContent = matched + ' of ' + rows.length + ' lines match';
+        countEl.classList.toggle('none', !!q.error || (!!q.re && matched === 0));
+      }
+      if (empty) empty.hidden = rows.length > 0;
+    }
+
+    /* ----- tailing ----- */
+
+    function renderLine(line) {
+      var li = document.createElement('li');
+      li.className = 'log-line lv-' + line.level + ' log-new';
+      li.setAttribute('data-text', line.text);
+      li.innerHTML =
+        '<time datetime="' + esc(line.time) + '" title="' + esc(line.time) + '">' +
+        esc(line.time.slice(11, 19)) + '</time>' +
+        '<span class="log-level">' + esc(line.level) + '</span>' +
+        '<span class="log-text"></span>';
+      li.querySelector('.log-text').textContent = line.text;
+      return li;
+    }
+
+    function atBottom() {
+      return root.scrollTop + root.clientHeight >= root.scrollHeight - 24;
+    }
+
+    function setState(text) {
+      if (stateEl) stateEl.textContent = text;
+    }
+
+    function tick() {
+      if (fetching) return Promise.resolve();
+      fetching = true;
+      var stick = followBox && followBox.checked && atBottom();
+
+      return fetch(
+        '/api/admin/logs?since=' + cursor +
+          '&channel=' + encodeURIComponent(channel) +
+          '&level=' + encodeURIComponent(level),
+        { headers: { accept: 'application/json' } },
+      )
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data) { setState('not responding'); return; }
+          setState('');
+          if (!data.lines.length) return;
+
+          cursor = data.cursor;
+          data.lines.forEach(function (line) { list.appendChild(renderLine(line)); });
+          // Keep the page bounded on an instance that has been logging for hours.
+          while (list.children.length > MAX_ROWS) list.removeChild(list.firstChild);
+
+          applyFilter();
+          if (stick) root.scrollTop = root.scrollHeight;
+        })
+        .catch(function () { setState('not responding'); })
+        .then(function () { fetching = false; });
+    }
+
+    function startPolling() {
+      if (timer) return;
+      timer = setInterval(function () {
+        // A hidden tab has nobody reading it; catching up on return is enough.
+        if (!document.hidden) tick();
+      }, LOG_POLL_MS);
+    }
+
+    function stopPolling() {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = null;
+      setState('paused');
+    }
+
+    /* ----- wiring ----- */
+
+    if (input) {
+      input.addEventListener('input', applyFilter);
+      // Escape empties the box, which is the quickest way back to the whole log.
+      input.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape' && input.value) {
+          ev.preventDefault();
+          input.value = '';
+          applyFilter();
+        }
+      });
+    }
+    if (regexBox) regexBox.addEventListener('change', applyFilter);
+    if (onlyBox) onlyBox.addEventListener('change', applyFilter);
+
+    if (followBox) {
+      followBox.addEventListener('change', function () {
+        if (followBox.checked) { startPolling(); tick(); } else { stopPolling(); }
+      });
+    }
+
+    /* Refresh stays a real link for the no-JavaScript case, but with the viewer
+       running a reload would throw away what is typed in the filter. So it fetches
+       instead, and only the lines change. */
+    if (refreshLink) {
+      refreshLink.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        setState('checking…');
+        tick();
+      });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && followBox && followBox.checked) tick();
+    });
+
+    // The selects re-query the server, so they submit the form they sit in.
+    if (filters) {
+      filters.querySelectorAll('[data-log-submit]').forEach(function (el) {
+        el.addEventListener('change', function () { filters.submit(); });
+      });
+    }
+
+    applyFilter();
+    // Newest is at the bottom, which is where a log is read from.
+    root.scrollTop = root.scrollHeight;
+    if (!followBox || followBox.checked) startPolling();
+  }
+
+  /* ---------- number fields ---------- */
+
+  /* A focused <input type="number"> takes the scroll wheel as an instruction to
+     count, so scrolling a settings page with the pointer over one silently edits it.
+     That is how a web port of 8025 becomes 7964 — sixty-one notches — with nothing on
+     screen to say it happened, and the next save stores it.
+
+     The field loses focus instead, which lets the page scroll normally and leaves the
+     value alone. Arrow keys and the spinners still step it, because those are asked
+     for; the wheel never is. */
+  function initNumberWheelGuard() {
+    document.addEventListener(
+      'wheel',
+      function (ev) {
+        var el = document.activeElement;
+        if (el && el.tagName === 'INPUT' && el.type === 'number' && el === ev.target) el.blur();
+      },
+      { passive: true },
+    );
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    initNumberWheelGuard();
+
     var combo = document.querySelector('[data-mailbox-combo]');
     if (combo) initMailboxCombo(combo);
 
@@ -379,5 +630,8 @@
 
     var tabs = document.querySelector('[data-view-tabs]');
     if (tabs) initViewTabs(tabs);
+
+    var logView = document.querySelector('[data-log-view]');
+    if (logView) initLogViewer(logView);
   });
 })();

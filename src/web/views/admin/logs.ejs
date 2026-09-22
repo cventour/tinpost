@@ -1,0 +1,142 @@
+<%- include('../partials/admin-shell-open') %>
+
+<h1>Logs</h1>
+<p class="lede">
+  What this instance has written since it started, newest at the bottom. Held in
+  memory only — the last <%= capacity.toLocaleString('en') %> lines, and nothing
+  survives a restart.
+</p>
+
+<%#
+  Channel and level live in the query string rather than in the page, so a filtered
+  view can be linked to, reloaded and bookmarked, and so the whole viewer still works
+  with JavaScript switched off. The text filter below is the opposite: it never
+  touches the server, because it has to keep up with typing.
+%>
+<form class="log-filters" method="get" action="/admin/logs" data-log-filters>
+  <label class="log-field">
+    <span>Channel</span>
+    <select name="channel" data-log-submit>
+      <option value="all" <%= query.channel === 'all' ? 'selected' : '' %>>
+        All (<%= counts.all %>)
+      </option>
+      <% channels.forEach(function (c) { %>
+        <option value="<%= c[0] %>" <%= query.channel === c[0] ? 'selected' : '' %>>
+          <%= c[1] %> (<%= counts[c[0]] %>)
+        </option>
+      <% }) %>
+    </select>
+  </label>
+
+  <label class="log-field">
+    <span>Level</span>
+    <select name="level" data-log-submit>
+      <option value="debug" <%= query.level === 'debug' ? 'selected' : '' %>>Everything</option>
+      <option value="info"  <%= query.level === 'info'  ? 'selected' : '' %>>Info and above</option>
+      <option value="warn"  <%= query.level === 'warn'  ? 'selected' : '' %>>Warnings and errors</option>
+      <option value="error" <%= query.level === 'error' ? 'selected' : '' %>>Errors only</option>
+    </select>
+  </label>
+
+  <%# Without JavaScript the selects above need something to submit them. %>
+  <noscript><button type="submit" class="btn small">Apply</button></noscript>
+
+  <div class="log-search">
+    <label class="log-field grow">
+      <span>Find</span>
+      <input type="search" id="log-filter" data-log-filter autocomplete="off" spellcheck="false"
+             placeholder="Type to highlight — e.g. 550, alice@, RCPT">
+    </label>
+    <label class="log-check" title="Match the text as a regular expression">
+      <input type="checkbox" data-log-regex> Regex
+    </label>
+    <label class="log-check" title="Hide every line that does not match">
+      <input type="checkbox" data-log-only checked> Matching lines only
+    </label>
+    <p class="log-count" data-log-count aria-live="polite"></p>
+  </div>
+</form>
+
+<div class="log-bar">
+  <%# A plain link, so it reloads the page and works whether or not the tail is running. %>
+  <a class="btn small" href="/admin/logs?channel=<%= query.channel %>&amp;level=<%= query.level %>"
+     data-log-refresh>Refresh</a>
+
+  <label class="log-check" title="Fetch new lines as they are written and keep the view at the bottom">
+    <input type="checkbox" data-log-follow checked> Follow
+  </label>
+  <span class="log-state" data-log-state></span>
+
+  <a class="btn small" href="/admin/logs.txt?channel=<%= query.channel %>&amp;level=<%= query.level %>">Download</a>
+
+  <form method="post" action="/admin/logs/clear?channel=<%= query.channel %>&amp;level=<%= query.level %>" class="inline">
+    <button class="btn small danger" type="submit">Clear log</button>
+  </form>
+</div>
+
+<% if (dropped) { %>
+  <p class="hint log-dropped">
+    <%= dropped.toLocaleString('en') %> older line(s) have already fallen off the end
+    of the buffer.
+  </p>
+<% } %>
+
+<%#
+  A list rather than one <pre>: each line is filtered and highlighted on its own, and
+  a list gives the filter something to hide. `data-text` carries the raw line so the
+  highlighter always rebuilds from the original rather than from its own last pass.
+%>
+<div class="log-view" data-log-view data-cursor="<%= cursor %>"
+     data-channel="<%= query.channel %>" data-level="<%= query.level %>">
+  <ol class="log-lines" data-log-lines>
+    <% lines.forEach(function (line) { %>
+      <li class="log-line lv-<%= line.level %>" data-text="<%= line.text %>">
+        <time datetime="<%= line.time %>" title="<%= line.time %>"><%= line.time.slice(11, 19) %></time>
+        <span class="log-level"><%= line.level %></span>
+        <span class="log-text"><%= line.text %></span>
+      </li>
+    <% }) %>
+  </ol>
+  <p class="empty" data-log-empty <%= lines.length ? 'hidden' : '' %>>
+    <% if (counts.all) { %>
+      Nothing matches this channel and level yet.
+    <% } else { %>
+      Nothing has been logged yet. Send a message to this instance and it will appear here.
+    <% } %>
+  </p>
+</div>
+
+<% if (truncated) { %>
+  <p class="hint">
+    Showing the most recent <%= lines.length.toLocaleString('en') %> lines. The rest
+    are still in the download.
+  </p>
+<% } %>
+
+<h2>SMTP conversation</h2>
+<form method="post" action="/admin/logs/protocol?channel=<%= query.channel %>&amp;level=<%= query.level %>">
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-protocol">Record every command and reply</label>
+      <p class="setting-hint">
+        The raw dialogue — <code>C: MAIL FROM:&lt;…&gt;</code>, <code>S: 250 Accepted</code>
+        and the rest — tagged with the connection it belongs to, so overlapping senders
+        stay apart. It is several lines per command, so it is off by default and fills
+        the buffer quickly while it is on. These lines are only ever written here, never
+        to the terminal, and they show at the <em>Everything</em> level.
+      </p>
+    </div>
+    <div class="setting-control">
+      <select id="f-protocol" name="protocol">
+        <option value="1" <%= protocol ? 'selected' : '' %>>On</option>
+        <option value="0" <%= protocol ? '' : 'selected' %>>Off</option>
+      </select>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn">Save</button>
+    <span class="save-note">Applies from the next connection.</span>
+  </div>
+</form>
+
+<%- include('../partials/admin-shell-close') %>

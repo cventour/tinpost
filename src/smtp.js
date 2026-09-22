@@ -1,3 +1,4 @@
+import { format } from 'node:util';
 import { SMTPServer } from 'smtp-server';
 import { MaxSizeExceeded } from './blobstore.js';
 import { ScanRejected } from './scan.js';
@@ -15,18 +16,28 @@ import { readAllEffective } from './settings.js';
 export function createSmtpServer({ db, blobs, delivery, config, logger = console }) {
   const limits = () => readAllEffective(db);
 
+  // Whether the line-by-line conversation is being recorded. Read once per
+  // connection rather than per line, which is both cheap and coherent: a session
+  // is transcribed in full or not at all, never half of one.
+  const transcript = { on: protocolLoggingOn(db) };
+
   const server = new SMTPServer({
     authOptional: true,
     disabledCommands: ['AUTH', 'STARTTLS'],
     // Lab senders often have no resolvable reverse DNS; looking it up only adds latency.
     disableReverseLookup: true,
-    logger: false,
+    // smtp-server writes the protocol itself — every C: and S: line, connection
+    // open and close, and its own errors. That is the raw SMTP log an operator
+    // actually wants, so it is captured rather than discarded, but only into the
+    // in-memory buffer: printing it would bury the one-line summaries below.
+    logger: protocolLogger(logger, transcript),
 
     onConnect(session, callback) {
       // smtp-server reads name, banner, size, maxClients and socketTimeout from this
       // object on every connection, so applying the admin's settings here makes them
       // take effect immediately rather than at the next restart.
       applyLimits(server, limits());
+      transcript.on = protocolLoggingOn(db);
       return callback();
     },
 
@@ -155,6 +166,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
     /** Push the current admin settings onto the live listener. */
     refresh() {
       applyLimits(server, limits());
+      transcript.on = protocolLoggingOn(db);
     },
     listen() {
       return new Promise((resolve, reject) => {
@@ -168,6 +180,42 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
     close() {
       return new Promise((resolve) => server.close(resolve));
     },
+  };
+}
+
+/** The stored flag behind the Logs page's transcript switch. Off unless turned on. */
+export function protocolLoggingOn(db) {
+  return db.getSetting('log_smtp_protocol') === '1';
+}
+
+/**
+ * Hand smtp-server a logger of the shape it expects — `level(meta, format, ...args)`,
+ * the bunyan-ish interface nodemailer's shared helper calls — and turn each call into
+ * one recorded line.
+ *
+ * Every severity the library uses is declared. Leaving one out would not silence it:
+ * the helper falls back to whichever method it can find, so an undeclared `error`
+ * would quietly arrive as something else.
+ */
+function protocolLogger(logger, transcript) {
+  // Nothing to record into, so let the library skip the work entirely.
+  if (typeof logger?.debug !== 'function') return false;
+
+  const write = (meta, message, args) => {
+    if (!transcript.on) return;
+    // The connection id groups a session's lines together, which is the only way to
+    // read a transcript when several senders overlap.
+    const cid = meta?.cid ? `[${meta.cid}] ` : '';
+    logger.debug(`smtp: ${cid}${format(message, ...args)}`);
+  };
+
+  return {
+    trace: (meta, message, ...args) => write(meta, message, args),
+    debug: (meta, message, ...args) => write(meta, message, args),
+    info: (meta, message, ...args) => write(meta, message, args),
+    warn: (meta, message, ...args) => write(meta, message, args),
+    error: (meta, message, ...args) => write(meta, message, args),
+    fatal: (meta, message, ...args) => write(meta, message, args),
   };
 }
 

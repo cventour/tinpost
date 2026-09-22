@@ -9,6 +9,8 @@ import {
   checkPortAvailable,
 } from '../settings.js';
 import { testConnection, icapConfig, icapAddress } from '../scan.js';
+import { LOG_CHANNELS, LOG_LEVELS, formatLine } from '../logbuf.js';
+import { protocolLoggingOn } from '../smtp.js';
 import {
   checkDataDir,
   writePointer,
@@ -28,7 +30,7 @@ import {
  * loopback by default for that reason, and every page says so when it does not.
  */
 export async function registerAdminRoutes(app) {
-  const { db, blobs, config, logger, smtp, privilege, portNotice } = app.mb;
+  const { db, blobs, config, logger, smtp, privilege, portNotice, logs } = app.mb;
 
   // ---------- shared model ----------
 
@@ -72,13 +74,28 @@ export async function registerAdminRoutes(app) {
 
   async function smtpModel(extra = {}) {
     const running = runningPorts();
+    // A port named on the command line or in the environment wins over anything saved
+    // here, for this run and every run started the same way. The page has to say so
+    // rather than let the field pretend it is in charge.
+    const overridden = { smtp_port: config.smtpPortExplicit, http_port: config.httpPortExplicit };
+
+    const values = readAllDisplay(db);
+    // A port nobody has ever set here shows the one actually bound, not the built-in
+    // default. The two are often different — a flag, or root taking port 25 — and a
+    // field that reads 2525 beside a listener on 25 is simply a lie.
+    for (const key of ['smtp_port', 'http_port']) {
+      const stored = db.getSetting(key);
+      if (stored === null || stored === '') values[key] = running[key];
+    }
+
     return shell('smtp', {
       title: 'SMTP — Tinpost admin',
       portNotice,
       privilege,
       specs: SMTP_SETTINGS,
-      values: readAllDisplay(db),
-      pending: pendingRestart(db, running),
+      values,
+      overridden,
+      pending: pendingRestart(db, running, { overridden }),
       listeners: {
         host: config.host,
         smtpPort: running.smtp_port,
@@ -121,7 +138,9 @@ export async function registerAdminRoutes(app) {
     smtp?.refresh?.();
     logger.info?.('admin: settings updated');
 
-    const stillPending = pendingRestart(db, runningPorts());
+    const stillPending = pendingRestart(db, runningPorts(), {
+      overridden: { smtp_port: config.smtpPortExplicit, http_port: config.httpPortExplicit },
+    });
     const notice = stillPending.length
       ? 'Saved. The limits are live now; the port change applies the next time Tinpost starts.'
       : 'Saved. The listener picked these up straight away.';
@@ -362,6 +381,104 @@ export async function registerAdminRoutes(app) {
     );
   });
 
+  // ---------- logs ----------
+
+  /**
+   * What the log viewer is looking at. Both filters are read from the query string
+   * rather than held in the page, so a view can be linked to and reloaded, and so
+   * the page still works with no JavaScript at all.
+   */
+  function logQuery(req) {
+    const channel = String(req.query?.channel ?? 'all');
+    const level = String(req.query?.level ?? 'debug');
+    return {
+      channel: channel === 'all' || LOG_CHANNELS.some(([key]) => key === channel) ? channel : 'all',
+      level: LOG_LEVELS.includes(level) ? level : 'debug',
+    };
+  }
+
+  app.get('/admin/logs', async (req, reply) => {
+    return reply.view('admin/logs', await logsModel(req));
+  });
+
+  async function logsModel(req, extra = {}) {
+    const query = logQuery(req);
+    // The viewer renders at most this many lines up front. The buffer can hold more,
+    // and the rest are still in the download — but a page that pastes several
+    // thousand rows into the DOM is slower to filter than it is worth.
+    const shown = logs.select({ ...query, limit: LOG_PAGE_LINES });
+    return shell('logs', {
+      title: 'Logs — Tinpost admin',
+      lines: shown,
+      // Where a tailing client resumes from. Taken from the last rendered line, not
+      // from the buffer's head, so a line filtered out here is not skipped later if
+      // the filter changes.
+      cursor: shown.length ? shown[shown.length - 1].seq : 0,
+      query,
+      channels: LOG_CHANNELS,
+      levels: LOG_LEVELS,
+      counts: logs.counts(),
+      capacity: logs.capacity,
+      dropped: logs.dropped,
+      truncated: logs.select(query).length > shown.length,
+      protocol: protocolLoggingOn(db),
+      ...extra,
+    });
+  }
+
+  /** New lines only. The viewer polls this with the sequence number it last saw. */
+  app.get('/api/admin/logs', async (req, reply) => {
+    const since = Number.parseInt(String(req.query?.since ?? '0'), 10);
+    const lines = logs.select({
+      ...logQuery(req),
+      since: Number.isInteger(since) && since >= 0 ? since : 0,
+      limit: LOG_PAGE_LINES,
+    });
+    return reply.header('cache-control', 'no-store').send({
+      lines,
+      cursor: lines.length ? lines[lines.length - 1].seq : since,
+      dropped: logs.dropped,
+      held: logs.size,
+    });
+  });
+
+  /** The same lines as a plain file, for pasting into a bug report. */
+  app.get('/admin/logs.txt', async (req, reply) => {
+    const body = logs.select(logQuery(req)).map(formatLine).join('\n');
+    return reply
+      .type('text/plain; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="tinpost.log"')
+      .send(body ? `${body}\n` : '');
+  });
+
+  app.post('/admin/logs/clear', async (req, reply) => {
+    const had = logs.clear();
+    // Written after the wipe, so the log is never empty about its own emptying.
+    logger.info?.(`admin: cleared the log (${had} line${had === 1 ? '' : 's'})`);
+    return reply.view('admin/logs', await logsModel(req, { notice: `Cleared ${had} line(s).` }));
+  });
+
+  /**
+   * Turn the SMTP conversation on or off. It is off by default: a transcript is
+   * several lines per command, which fills the buffer quickly and is only wanted
+   * when something specific is being chased.
+   */
+  app.post('/admin/logs/protocol', async (req, reply) => {
+    const on = String(req.body?.protocol ?? '') === '1';
+    db.setSetting('log_smtp_protocol', on ? '1' : '0');
+    // The listener holds its own copy so it is not read per line; push the new value.
+    smtp?.refresh?.();
+    logger.info?.(`admin: SMTP conversation logging turned ${on ? 'on' : 'off'}`);
+    return reply.view(
+      'admin/logs',
+      await logsModel(req, {
+        notice: on
+          ? 'Recording the SMTP conversation. Every command and reply now appears here, from the next connection on.'
+          : 'Stopped recording the SMTP conversation. The summary lines carry on as before.',
+      }),
+    );
+  });
+
   app.post('/admin/purge', async (req, reply) => {
     // Typed confirmation: purging is not undoable and this is the one destructive control.
     if (String(req.body?.confirm ?? '').trim().toUpperCase() !== 'PURGE') {
@@ -380,6 +497,9 @@ export async function registerAdminRoutes(app) {
     );
   });
 }
+
+/** How many lines the viewer renders at once; see logsModel(). */
+const LOG_PAGE_LINES = 1000;
 
 /** Echo back what was typed, so a rejected form does not lose the operator's input. */
 function pickSubmitted(body) {

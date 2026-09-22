@@ -354,6 +354,14 @@ The one component that is more than the sum of its tokens.
 - **Arrival:** A newly inserted row plays `flash` — a 1.4s ease-out fade from a 22% accent wash to transparent — and is suppressed entirely under `prefers-reduced-motion`.
 - **Unread:** 700 weight on sender and subject, `--ink` instead of dim, plus a 5% accent row wash; the count renders in accent 700 at 13px and is mirrored into the document title.
 
+### Log Viewer
+- **Console pane:** A `58vh` scrolling field on `--sunk` inside a 6px border, padded vertically only so rows rule edge to edge. Newest is at the bottom and the pane opens scrolled there.
+- **Row:** A `7ch / 5.5ch / 1fr` monospace grid at 12.5px &mdash; time (dim, tabular), level (10.5px uppercase, 0.4px tracking), text. The text cell is `pre-wrap` so a stack trace or a multi-line SMTP reply keeps its shape. Below `680px` the level column is dropped rather than squeezed.
+- **Level colour:** Errors take `--err-line`, warnings `--warn-line`, and protocol detail sits at `--ink-dim` for the whole row &mdash; severity is carried by colour, never by weight, so the monospace rhythm holds.
+- **Highlighting:** Matches are wrapped in `<mark>` at a 34% accent wash, rebuilt from the row's `data-text` on every keystroke so highlights never nest. Non-matching rows are hidden, or dropped to `0.45` opacity when "matching lines only" is off.
+- **Arrival:** A tailed row plays `log-flash`, a 1.2s ease-out from a 20% accent wash, suppressed under `prefers-reduced-motion` &mdash; the same grammar as an arriving inbox row, one step quieter.
+- **Control rows:** Filters wrap with the find box on a row of its own; the action bar below sits under a `--line` rule with the destructive control pushed to the far end by `margin-left: auto`.
+
 ## Do's and Don'ts
 
 ### Do:

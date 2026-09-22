@@ -40,6 +40,27 @@
     <% } %>
   </p>
 <% } %>
+<%#
+  A flag outranks these fields for as long as the start command carries it, so the
+  page says which one and what to drop — the same courtesy the Storage page gives
+  --data-dir. Without this the field looks editable and silently does nothing.
+%>
+<% if (locals.overridden && (overridden.smtp_port || overridden.http_port)) {
+     const fixed = [];
+     if (overridden.smtp_port) fixed.push({ flag: '--smtp-port', env: 'TINPOST_SMTP_PORT', label: 'SMTP', port: listeners.smtpPort });
+     if (overridden.http_port) fixed.push({ flag: '--http-port', env: 'TINPOST_HTTP_PORT', label: 'web', port: listeners.httpPort });
+     const list = function (items) { return items.length > 1 ? items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1] : items[0]; }; %>
+  <p class="warn">
+    <strong>This run was started with the
+    <%= list(fixed.map(function (f) { return f.label; })) %>
+    port<%= fixed.length > 1 ? 's' : '' %> given on the command line, so it is on
+    <%- list(fixed.map(function (f) { return '<code>' + f.port + '</code>'; })) %>
+    whatever is set here.</strong>
+    Drop <%- list(fixed.map(function (f) { return '<code>' + f.flag + '</code>'; })) %>
+    (or <%- list(fixed.map(function (f) { return '<code>' + f.env + '</code>'; })) %>)
+    from the start command to let these fields apply.
+  </p>
+<% } %>
 <% if (pending.length) { %>
   <p class="warn">
     <% pending.forEach(function (p) { %>

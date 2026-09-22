@@ -6,6 +6,46 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- Fixed: **the admin page showed the wrong SMTP port.** A port that had never been set
+  on the page fell back to the built-in default — 2525 — even when the process was
+  listening on something else entirely, which is the normal case: a `--smtp-port` flag,
+  or running as root and taking port 25. The field read `2525` beside a listener on
+  `25`, and the page then advised a restart to "move" a port that was already where it
+  should be. A port nobody has chosen now shows the port actually bound.
+
+- Fixed: **a port fixed on the command line is now named as such.** `--smtp-port` and
+  `--http-port` (and `TINPOST_SMTP_PORT` / `TINPOST_HTTP_PORT`) outrank anything saved
+  on the page, at this start and at every later one — so "restart Tinpost to move it"
+  was false advice, and the field looked editable while doing nothing. The page now
+  says which port is fixed and what to drop from the start command, the way the Storage
+  page already does for `--data-dir`.
+
+- Fixed: **the scroll wheel could silently retune a number field.** A focused
+  `<input type="number">` treats the wheel as an instruction to count, so scrolling the
+  settings page with the pointer over one edited it without a word — which is how a
+  saved web port of `8025` quietly became `7964` and was then reported as waiting for a
+  restart. Number fields now give up focus to a wheel instead of counting it; the arrow
+  keys and the spinners still work, because those are asked for.
+
+- New: **a log viewer under Admin ▸ Logs.** The server's own log, raw, newest at the
+  bottom, with a find box that highlights every match as you type and hides the rest
+  until you clear it — plain text, or a regular expression if you tick the box. It can
+  be narrowed to one channel (SMTP, Scanning, Admin, Web) and to a minimum level, both
+  of which live in the query string so a filtered view can be bookmarked. **Follow**
+  tails it live, asking only for lines newer than the last one on screen; **Refresh**
+  pulls the newest without reloading, so what you have typed in the find box survives;
+  **Download** saves what is on screen as a plain `.log`; and **Clear log** empties the
+  buffer. It is memory only — the last 3,000 lines, gone at a restart — because a lab
+  instance is thrown away at the end of the afternoon and a file on disk would only
+  bring rotation and permissions with it.
+
+  There is also a switch for the **full SMTP conversation**: with it on, every command
+  and reply is recorded, tagged with the connection it belongs to so overlapping
+  senders stay apart. That is the raw SMTP log — `C: RCPT TO:<…>`, `S: 250 Accepted`,
+  the lot. It is off by default, and those lines only ever go to this page, never to
+  the terminal, so the startup banner and the one-line delivery summaries stay
+  readable.
+
 - New: **attachments can be scanned by an ICAP server before a message is accepted.**
   Point Tinpost at a virus scanner or content filter — address, port and service path,
   under **Scanning** on the admin page — and every attachment is sent for a verdict

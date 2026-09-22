@@ -12,13 +12,20 @@ import {
   FALLBACK_SMTP_PORT,
 } from './privilege.js';
 import { createSmtpServer } from './smtp.js';
+import { LogBuffer, recordingLogger } from './logbuf.js';
 import { createWebServer } from './web/server.js';
 
 /**
  * Wire the whole instance together and start both listeners.
  * Returns handles so tests (and the CLI) can shut it down cleanly.
  */
-export async function start(flags = {}, { logger = console } = {}) {
+export async function start(flags = {}, { logger: baseLogger = console } = {}) {
+  // Everything written from here on is kept in memory as well as printed, so the
+  // admin Logs page can show it. Built before anything else, so a failure during
+  // startup is in the buffer too.
+  const logs = new LogBuffer();
+  const logger = recordingLogger(baseLogger, logs);
+
   let config = loadConfig(flags);
   const db = new Db(config.dbPath);
 
@@ -86,6 +93,7 @@ export async function start(flags = {}, { logger = console } = {}) {
     privilege,
     portNotice: notice,
     logger,
+    logs,
   });
   const webAddress = await web.listen();
 
@@ -100,6 +108,7 @@ export async function start(flags = {}, { logger = console } = {}) {
     blobs,
     delivery,
     scanner,
+    logs,
     ports,
     privilege,
     portNotice: notice,
@@ -112,4 +121,4 @@ export async function start(flags = {}, { logger = console } = {}) {
   };
 }
 
-export { loadConfig, Db, BlobStore, Delivery, Scanner };
+export { loadConfig, Db, BlobStore, Delivery, Scanner, LogBuffer };

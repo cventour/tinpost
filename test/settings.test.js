@@ -45,11 +45,20 @@ function formBody(lab, overrides = {}) {
   }).toString();
 }
 
-async function withAdmin(t) {
+/**
+ * An admin area over a real pair of listeners.
+ *
+ * The lab binds port 0 to get free ports, which loadConfig quite correctly reads as
+ * "the ports were given explicitly". Most tests mean the ordinary `tinpost serve`
+ * case instead, so the flags are cleared unless a test asks for them — otherwise
+ * every one of them would be exercising the command-line-override path by accident.
+ */
+async function withAdmin(t, { explicitPorts = false } = {}) {
   const lab = await makeLab();
-  const smtp = createSmtpServer({ ...lab, config: lab.config, logger: quiet });
+  const config = { ...lab.config, smtpPortExplicit: explicitPorts, httpPortExplicit: explicitPorts };
+  const smtp = createSmtpServer({ ...lab, config, logger: quiet });
   await smtp.listen();
-  const web = await createWebServer({ ...lab, config: lab.config, smtp, logger: quiet });
+  const web = await createWebServer({ ...lab, config, smtp, logger: quiet });
   // Bind for real, so the routes see the ports this process actually holds.
   await web.app.listen({ port: 0, host: '127.0.0.1' });
 
@@ -61,6 +70,7 @@ async function withAdmin(t) {
 
   return {
     ...lab,
+    config,
     app: web.app,
     smtp,
     admin: { ...form },
@@ -316,6 +326,66 @@ test('a saved port is used at the next start, and a flag still overrides it', as
   await third.stop();
 
   await rm(dataDir, { recursive: true, force: true });
+});
+
+// ---------- the page must not lie about the ports ----------
+
+test('a port nobody has set shows the one actually bound, not the built-in default', async (t) => {
+  const lab = await withAdmin(t);
+  assert.equal(lab.db.getSetting('smtp_port'), null, 'nothing has been saved');
+
+  const res = await lab.app.inject({ method: 'GET', url: '/admin' });
+  // The listener is on an arbitrary free port here, exactly as a root instance is on
+  // 25 while the built-in default still says 2525.
+  assert.match(res.body, new RegExp(`name="smtp_port"[^>]*\\s+value="${lab.ports.smtp}"`));
+  assert.match(res.body, new RegExp(`name="http_port"[^>]*\\s+value="${lab.ports.http}"`));
+  assert.doesNotMatch(res.body, /Restart Tinpost to move it/, 'nothing was chosen, so nothing is pending');
+});
+
+test('an unset port is never reported as waiting for a restart', async (t) => {
+  const lab = await makeLab();
+  t.after(() => lab.cleanup());
+
+  // 2525 and 8025 are the built-in defaults; a process on 25 and 8025 has simply
+  // resolved its SMTP port some other way — a flag, or root privileges.
+  const pending = pendingRestart(lab.db, { smtp_port: 25, http_port: 8025 });
+  assert.deepEqual(pending, [], 'a default nobody chose is not a saved value to restart for');
+});
+
+test('a port fixed on the command line says so, and does not ask for a pointless restart', async (t) => {
+  const lab = await withAdmin(t, { explicitPorts: true });
+
+  // Save something else entirely, the way the container's operator would.
+  lab.db.setSetting('http_port', '7964');
+
+  const res = await lab.app.inject({ method: 'GET', url: '/admin' });
+  assert.match(res.body, /to let these fields apply/);
+  // A restart re-applies the same flag, so telling anyone to restart would be wrong.
+  assert.doesNotMatch(res.body, /Restart Tinpost to move it/);
+
+  const pending = pendingRestart(lab.db, { http_port: lab.ports.http }, { overridden: { http_port: true } });
+  assert.deepEqual(pending, []);
+});
+
+test('without a flag, a saved port that differs is still reported', async (t) => {
+  const lab = await withAdmin(t);
+  lab.db.setSetting('http_port', '7964');
+
+  const res = await lab.app.inject({ method: 'GET', url: '/admin' });
+  assert.match(res.body, /Restart Tinpost to move it/);
+  // The static footnote mentions the command line on every render; the warning does not.
+  assert.doesNotMatch(res.body, /to let these fields apply/);
+});
+
+test('the wheel cannot quietly retune a number field', async (t) => {
+  const lab = await withAdmin(t);
+  const script = await lab.app.inject({ method: 'GET', url: '/static/app.js' });
+
+  // The mechanism that turned a saved web port of 8025 into 7964: a focused
+  // <input type="number"> counts scroll wheel notches as edits.
+  assert.match(script.body, /initNumberWheelGuard/);
+  assert.match(script.body, /el\.type === 'number'/);
+  assert.match(script.body, /\.blur\(\)/);
 });
 
 test('every setting has a label, a hint and a default', () => {

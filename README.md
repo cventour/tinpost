@@ -146,6 +146,33 @@ From there you can:
 - See every mailbox with its message counts, open one, or delete its mail.
 - See how much disk the stored files use, reclaim space, or purge everything to reset
   the lab between runs.
+- Read the server's own log, and follow it live &mdash; see below.
+
+## Logs
+
+**Admin ▸ Logs** shows what the instance has written since it started: the raw
+lines, newest at the bottom, with a find box that highlights every match as you type
+and hides everything else until you clear it. Plain text by default, or tick
+**Regex** for a pattern. Channel (SMTP, Scanning, Admin, Web) and level are query
+parameters, so a filtered view can be bookmarked and shared, and the page works with
+JavaScript switched off.
+
+**Follow** tails the log while you watch, asking only for lines newer than the last
+one on screen. **Refresh** pulls the newest lines without reloading, so whatever you
+have typed in the find box survives. **Download** saves what is on screen as a plain
+`.log` file, and **Clear log** empties the buffer when the last hour is no longer
+interesting.
+
+The log is held in memory only &mdash; the last 3,000 lines, and nothing survives a
+restart. A lab instance is started, used and thrown away; a file on disk would have
+to be rotated, permissioned and cleaned up to answer a question that the last few
+thousand lines already answer.
+
+Under the list is a switch for the **SMTP conversation**: with it on, every command
+and reply is recorded &mdash; `C: MAIL FROM:<…>`, `S: 250 Accepted` and the rest
+&mdash; tagged with the connection it belongs to so overlapping senders stay apart.
+It is off by default because it is several lines per command, and it is only ever
+written to this page, never to the terminal.
 
 ## Attachment scanning over ICAP
 

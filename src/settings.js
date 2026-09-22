@@ -314,10 +314,23 @@ export function restartOnlyKeys() {
 /**
  * Which restart-only settings differ from what the running process actually bound.
  * Used to tell the operator that a saved port is not the port they are talking to.
+ *
+ * Two cases look like a difference but are not, and saying "restart to move it" in
+ * either of them is false advice:
+ *
+ * - Nothing has ever been saved for that key. The built-in default is then not a
+ *   choice anyone made, and the process may well have resolved a different port from
+ *   a flag or from its privileges. Whatever it bound is the right answer.
+ * - A flag or an environment variable fixed the port for this run. It will fix it
+ *   again at the next start, so a restart changes nothing. `overridden` names those.
  */
-export function pendingRestart(db, running) {
+export function pendingRestart(db, running, { overridden = {} } = {}) {
   const pending = [];
   for (const key of restartOnlyKeys()) {
+    const stored = db.getSetting(key);
+    if (stored === null || stored === '') continue;
+    if (overridden[key]) continue;
+
     const saved = readSetting(db, key);
     if (running[key] !== undefined && running[key] !== saved) {
       pending.push({ key, label: SETTINGS[key].label, saved, running: running[key] });
