@@ -300,27 +300,39 @@ export async function registerAdminRoutes(app) {
     });
   }
 
-  app.post('/admin/relay', async (req, reply) => {
-    const body = { ...(req.body ?? {}) };
+  /**
+   * Validate and store the relay form. Returns the error to show, or null. Shared by
+   * Save and by the connection test, which saves first so it always tests what the
+   * form says rather than what was last saved.
+   */
+  function saveRelay(body) {
     // An empty password field keeps the saved one: the form never shows it, so
     // every save would otherwise wipe it.
     if (!String(body.relay_pass ?? '')) delete body.relay_pass;
 
-    const rerender = async (error) => {
-      const values = { ...readAllDisplay(db), ...pickSubmitted(body), relay_pass: '' };
-      return reply.code(400).view('admin/relay', await relayModel({ error, values }));
-    };
-
     const on = (key) => ['1', 'on', 'true', 'yes'].includes(String(body[key] ?? '').trim());
     if (on('relay_enabled') && on('relay_auth') && !String(body.relay_user ?? '').trim()) {
-      return rerender('Authentication is on, so a username is required.');
+      return 'Authentication is on, so a username is required.';
     }
-
     const result = saveSettings(db, body);
-    if (!result.ok) return rerender(result.error);
+    if (!result.ok) return result.error;
 
     const config = relayConfig(db);
     logger.info?.(`admin: upstream relay settings updated (${config.enabled ? relayAddress(config) : 'off'})`);
+    return null;
+  }
+
+  async function rejectRelay(reply, body, error) {
+    const values = { ...readAllDisplay(db), ...pickSubmitted(body), relay_pass: '' };
+    return reply.code(400).view('admin/relay', await relayModel({ error, values }));
+  }
+
+  app.post('/admin/relay', async (req, reply) => {
+    const body = { ...(req.body ?? {}) };
+    const error = saveRelay(body);
+    if (error) return rejectRelay(reply, body, error);
+
+    const config = relayConfig(db);
     return reply.view(
       'admin/relay',
       await relayModel({
@@ -333,11 +345,21 @@ export async function registerAdminRoutes(app) {
     );
   });
 
-  /** Connect, greet and log in to the gateway without sending anything. */
+  /** Save the form, then connect, greet and log in to the gateway without sending anything. */
   app.post('/admin/relay/test', async (req, reply) => {
+    const body = { ...(req.body ?? {}) };
+    // A bare post (no form fields) just tests what is saved.
+    if (Object.keys(pickSubmitted(body)).length) {
+      const error = saveRelay(body);
+      if (error) return rejectRelay(reply, body, error);
+    }
+
     const result = await testRelay(db);
     logger.info?.(`admin: relay test ${result.ok ? 'succeeded' : 'failed'} for ${result.where}`);
-    return reply.view('admin/relay', await relayModel(result.ok ? { notice: result.detail } : { error: result.error }));
+    return reply.view(
+      'admin/relay',
+      await relayModel(result.ok ? { notice: `Saved. ${result.detail}` } : { error: `Saved, but the test failed. ${result.error}` }),
+    );
   });
 
   // ---------- mailboxes ----------

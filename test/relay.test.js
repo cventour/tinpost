@@ -401,6 +401,18 @@ test('the relay page saves settings, keeps the password when left blank, and nev
   await post('/admin/relay', { ...form, relay_pass: '' });
   assert.equal(lab.db.getSetting('relay_pass'), 'hunter2', 'an empty field keeps the saved password');
 
+  // The test button saves the form first, so it tests what was typed.
+  const tested = await post('/admin/relay/test', { ...form, relay_host: '127.0.0.1', relay_port: String(await deadPort()), relay_timeout: '2' });
+  assert.equal(tested.statusCode, 200);
+  assert.match(tested.body, /Saved, but the test failed/);
+  assert.equal(lab.db.getSetting('relay_host'), '127.0.0.1');
+  assert.equal(lab.db.getSetting('relay_pass'), 'hunter2');
+
+  const gateway = await startGateway({ auth: { user: 'tinpost', pass: 'hunter2' } });
+  t.after(() => gateway.close());
+  const passed = await post('/admin/relay/test', { ...form, relay_host: '127.0.0.1', relay_port: String(gateway.port) });
+  assert.match(passed.body, /Saved\. 127\.0\.0\.1:\d+ answered and accepted the login for tinpost/);
+
   const missingUser = await post('/admin/relay', { ...form, relay_user: '' });
   assert.equal(missingUser.statusCode, 400);
   assert.match(missingUser.body, /username is required/);

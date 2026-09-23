@@ -10,6 +10,10 @@
 </p>
 
 <form method="post" action="/admin/relay">
+  <%# Enter in a field submits with the form's first button. The test button sits
+      above Save, so this invisible Save comes first and keeps Enter meaning save. %>
+  <button type="submit" class="default-submit" tabindex="-1" aria-hidden="true">Save settings</button>
+
   <h2>Upstream server</h2>
 
   <div class="setting">
@@ -36,7 +40,35 @@
     </div>
   </div>
 
-  <% ['relay_port', 'relay_timeout'].forEach(function (key) {
+  <% ['relay_port'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <input type="number" id="f-<%= key %>" name="<%= key %>" value="<%= values[key] %>"
+               min="<%= spec.min %>" max="<%= spec.max %>" required inputmode="numeric">
+        <% if (spec.unit) { %><span class="unit"><%= spec.unit %></span><% } %>
+      </div>
+    </div>
+  <% }) %>
+
+  <div class="setting">
+    <div>
+      <span class="setting-label">Connection</span>
+      <p class="setting-hint">
+        Saves every setting on this page, then connects to the server, greets it and
+        logs in if authentication is on. It does not send any mail.
+      </p>
+    </div>
+    <div class="setting-control">
+      <button type="submit" class="btn small ghost" formaction="/admin/relay/test">Save and test the connection</button>
+    </div>
+  </div>
+
+  <% ['relay_timeout'].forEach(function (key) {
        const spec = specs[key]; %>
     <div class="setting">
       <div>
@@ -110,16 +142,6 @@
     <button type="submit" class="btn">Save settings</button>
     <span class="save-note">Applied to the next message.</span>
   </div>
-</form>
-
-<h2>Connection</h2>
-<p class="hint">
-  The relay is configured as <code><%= relayAddress %></code>, over plain SMTP with no TLS.
-  The test connects, greets the server and logs in if authentication is on. It does
-  not send any mail.
-</p>
-<form method="post" action="/admin/relay/test">
-  <button type="submit" class="btn small">Test the connection</button>
 </form>
 
 <h2>How mail is routed</h2>

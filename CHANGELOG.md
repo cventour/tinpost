@@ -4,6 +4,15 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.5.1 — 23 September 2026
+
+- Changed: **testing the relay connection saves first, and sits beside the address.**
+  The button is now "Save and test the connection", directly under the upstream
+  server's address and port, so it always tests what you just typed rather than what
+  was last saved. A failed test says the settings were saved and gives the error; a
+  setting that does not validate is neither saved nor tested. Pressing Enter in a
+  field still saves without testing.
+
 ## v0.5.0 — 23 September 2026
 
 - New: **an upstream relay for outbound mail.** Admin ▸ Upstream relay hands mail
