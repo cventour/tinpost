@@ -9,9 +9,17 @@ import { readAllEffective } from './settings.js';
  * The SMTP side of the lab: accepts anonymous submission on a high port and hands
  * every accepted message to the shared delivery path.
  *
- * No AUTH and no STARTTLS by design — lab senders are scripts and test harnesses
- * on loopback, and demanding credentials would only get in the way. The listener
+ * No STARTTLS by design — lab senders are scripts and test harnesses on loopback,
+ * and a certificate they would all have to trust only gets in the way. The listener
  * binds 127.0.0.1 unless explicitly told otherwise.
+ *
+ * AUTH is a different matter. Nothing here is protected by it and nothing ever will
+ * be, but a sender that finds no AUTH advertised may simply hang up rather than
+ * deliver, and then the lab cannot receive the mail it exists to receive. So the
+ * server offers it and accepts anything at all: any username, any password, any
+ * token. It is theatre, performed so that a client which insists on the ritual can
+ * complete it. Authentication stays optional throughout, so a sender that skips it
+ * is treated exactly as before.
  */
 export function createSmtpServer({ db, blobs, delivery, config, logger = console }) {
   const limits = () => readAllEffective(db);
@@ -22,7 +30,14 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
   const transcript = { on: protocolLoggingOn(db) };
 
   const server = new SMTPServer({
+    // Never required, only offered. Every mechanism the library implements is listed,
+    // because the whole point is to meet a client wherever it happens to be.
     authOptional: true,
+    authMethods: ['PLAIN', 'LOGIN', 'CRAM-MD5', 'XOAUTH2'],
+    // Without this the library would demand STARTTLS before AUTH — on a lab server
+    // that deliberately has no TLS, that is a door with no handle.
+    allowInsecureAuth: true,
+    // Whether AUTH is actually offered is settled per connection in applyLimits().
     disabledCommands: ['AUTH', 'STARTTLS'],
     // Lab senders often have no resolvable reverse DNS; looking it up only adds latency.
     disableReverseLookup: true,
@@ -46,6 +61,19 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       // was switched on.
       logger.info?.(`smtp: connection from ${session.remoteAddress || 'unknown'}`);
       return callback();
+    },
+
+    /**
+     * Accept every credential, and say in the log what was offered.
+     *
+     * The username is worth recording: a sender that authenticates as one identity
+     * and then puts something else in MAIL FROM is a common misconfiguration, and
+     * this is the only place the two can be compared.
+     */
+    onAuth(auth, session, callback) {
+      const who = auth.username || (auth.accessToken ? '(token)' : '(none)');
+      logger.info?.(`smtp: authenticated ${who} via ${auth.method} (any credential is accepted)`);
+      return callback(null, { user: auth.username || 'anonymous' });
     },
 
     onMailFrom(address, session, callback) {
@@ -260,6 +288,10 @@ function connectionFor(server, session) {
 }
 
 function applyLimits(server, values) {
+  // AUTH is advertised by leaving it out of the disabled list. The library consults
+  // that array on every command and when building the EHLO reply, so this settles
+  // itself on the next connection with no restart.
+  server.options.disabledCommands = values.smtp_auth ? ['STARTTLS'] : ['AUTH', 'STARTTLS'];
   server.options.size = values.smtp_max_size;
   server.options.maxClients = values.smtp_max_clients;
   server.options.socketTimeout = values.smtp_socket_timeout;

@@ -4,6 +4,20 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.4.0 — 23 September 2026
+
+- New: **Tinpost offers `AUTH`, and accepts anything.** Some senders refuse to talk to
+  a server that advertises no way to authenticate — they close the connection rather
+  than deliver, and the lab never sees the mail. Tinpost now advertises `AUTH` with
+  `PLAIN`, `LOGIN`, `CRAM-MD5` and `XOAUTH2`, and accepts any username, any password
+  and any token. It proves nothing and is not meant to: it exists so a client that
+  insists on the ritual can complete it. Authentication is never required, so a sender
+  that skips it is accepted exactly as before and nothing that worked yesterday stops
+  working. The username offered is written to the log, which is the quickest way to
+  catch a client that authenticates as one identity and then puts another in
+  `MAIL FROM`. Turn the offer off under **SMTP ▸ Authentication** to test a client
+  against a server that refuses it. `STARTTLS` is still not offered.
+
 ## v0.3.0 — 23 September 2026
 
 - New: **the version is shown beside the wordmark**, on every page, so it is obvious

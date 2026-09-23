@@ -120,7 +120,7 @@ console.log(`
 
   Webmail   http://${displayHost}:${ports.http}
   Admin     http://${displayHost}:${ports.http}/admin   (no password)
-  SMTP      ${config.host}:${ports.smtp}${ports.smtp === 25 ? '      ' : '   '}(no AUTH, no TLS)
+  SMTP      ${config.host}:${ports.smtp}${ports.smtp === 25 ? '      ' : '   '}(any credentials, no TLS)
   Data      ${config.dataDir}${
   icap.enabled
     ? `\n  Scanning  ${icapAddress(icap)}   (attachments, ${icap.failMode === 'open' ? 'delivered if the scanner is down' : 'refused if the scanner is down'})`

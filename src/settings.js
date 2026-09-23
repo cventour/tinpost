@@ -66,6 +66,12 @@ export const SMTP_SETTINGS = {
     max: 65535,
     restart: true,
   },
+  smtp_auth: {
+    label: 'Advertise AUTH and accept any credentials',
+    hint: 'Some senders refuse to talk to a server that offers no way to authenticate, and close the connection rather than send. With this on, Tinpost advertises AUTH (PLAIN, LOGIN, CRAM-MD5 and XOAUTH2) and accepts whatever is offered — any username, any password, any token. It proves nothing and is not meant to: it exists so a client that insists on authenticating can. Authentication stays optional either way, so a sender that does not authenticate is still accepted.',
+    type: 'bool',
+    default: 1,
+  },
   smtp_name: {
     label: 'Server name',
     hint: 'What the server calls itself in greetings and in Received headers. A scenario reads better when this matches the domain it is pretending to be.',

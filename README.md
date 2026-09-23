@@ -34,7 +34,7 @@ That prints the URLs:
 ```
   Webmail   http://127.0.0.1:8025
   Admin     http://127.0.0.1:8025/admin   (no password)
-  SMTP      127.0.0.1:2525   (no AUTH, no TLS)
+  SMTP      127.0.0.1:2525   (any credentials, no TLS)
   Data      /home/you/.tinpost
 ```
 
@@ -177,6 +177,27 @@ and reply is recorded &mdash; `C: MAIL FROM:<…>`, `S: 250 Accepted` and the re
 &mdash; tagged with the connection it belongs to so overlapping senders stay apart.
 It is off by default because it is several lines per command, and it is only ever
 written to this page, never to the terminal.
+
+## Authentication
+
+There is nothing to authenticate to: every mailbox is readable by anyone who can
+reach the web port, by design. But a sender that finds no `AUTH` advertised may
+simply hang up rather than deliver, and then the lab cannot receive the mail it
+exists to receive. So Tinpost advertises `AUTH` and accepts **anything at all** —
+any username, any password, any token, over `PLAIN`, `LOGIN`, `CRAM-MD5` or
+`XOAUTH2`. It proves nothing, and is not meant to.
+
+Authentication is never *required*. A sender that skips it is accepted exactly as
+before, so nothing that worked yesterday stops working. The username offered is
+written to the log, which is often the fastest way to catch a client that
+authenticates as one identity and then puts something else in `MAIL FROM`.
+
+Turn the offer off under **SMTP ▸ Authentication** on the admin page if you want to
+test how a client behaves against a server that refuses it.
+
+`STARTTLS` is still not offered. A lab sender would need a certificate it could
+trust, and issuing one for a `.lab` name is a great deal of ceremony for a server
+whose whole point is that nothing about it is secret.
 
 ## Attachment scanning over ICAP
 
