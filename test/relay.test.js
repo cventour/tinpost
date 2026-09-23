@@ -103,9 +103,10 @@ test('only a local sender writing outside their own domain is relayed', () => {
     local: ['b@lab.local'],
     relay: ['c@gmail.com', 'd@corp.test'],
   });
-  assert.deepEqual(planRoute(config, { from: 'x@elsewhere.test', recipients: ['a@lab.local'] }), {
-    local: ['a@lab.local'],
-    relay: [],
+  // Into a local domain from outside goes through the gateway; outside to outside does not.
+  assert.deepEqual(planRoute(config, { from: 'x@elsewhere.test', recipients: ['a@lab.local', 'y@elsewhere.test', 'z@other.test'] }), {
+    local: ['y@elsewhere.test', 'z@other.test'],
+    relay: ['a@lab.local'],
   });
   assert.deepEqual(planRoute({ ...config, enabled: false }, { from: 'a@lab.local', recipients: ['c@gmail.com'] }), {
     local: ['c@gmail.com'],
@@ -192,6 +193,33 @@ test('outbound mail goes to the gateway, and the recipient gets it only when it 
   assert.equal(inbox[0].relay_status, 'returned');
   assert.equal(lab.gateway.received.length, 1, 'the returned copy is not relayed again');
   assert.equal(lab.db.listSent('alice@lab.local').length, 1, 'the sender does not get a second copy');
+});
+
+test('inbound mail from outside to a local domain goes through the gateway and comes back', async (t) => {
+  const lab = await labWithGateway(t);
+  const sent = await lab.delivery.deliverComposed({
+    from: 'mallory@phish.test',
+    to: ['alice@lab.local'],
+    subject: 'Invoice overdue',
+    text: 'click here',
+  });
+
+  assert.equal(lab.gateway.received.length, 1);
+  assert.deepEqual(lab.gateway.received[0].to, ['alice@lab.local']);
+  assert.equal(lab.db.listInbox('alice@lab.local').length, 0, 'nothing until the gateway returns it');
+  assert.deepEqual(sent.addresses, ['mallory@phish.test']);
+
+  const handed = lab.gateway.received[0];
+  await lab.delivery.deliverRaw(handed.raw, { envelopeRecipients: handed.to, envelopeFrom: handed.from, fromGateway: true });
+  assert.equal(lab.db.listInbox('alice@lab.local').length, 1);
+  assert.equal(lab.db.listSent('mallory@phish.test').length, 1);
+});
+
+test('mail between two domains that are not local is delivered directly', async (t) => {
+  const lab = await labWithGateway(t);
+  await lab.delivery.deliverComposed({ from: 'x@elsewhere.test', to: ['y@other.test'], subject: 'Aside', text: 'x' });
+  assert.equal(lab.gateway.received.length, 0);
+  assert.equal(lab.db.listInbox('y@other.test').length, 1);
 });
 
 test('a mixed message is split: same-domain recipients directly, the rest through the gateway', async (t) => {

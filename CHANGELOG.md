@@ -4,6 +4,23 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.6.0 — 23 September 2026
+
+- **Changes behaviour when the relay is on:** mail from any other domain *to* a local
+  domain now goes through the upstream gateway too, whether it is written in the
+  webmail or arrives over SMTP. Before, it was delivered directly. A script or a
+  product that sends straight to Tinpost's SMTP port into a local domain will now
+  have its mail scanned by the gateway first; to let a sender bypass the gateway,
+  list its address under gateway return addresses. With the relay off, nothing
+  changes.
+
+- New: **the relay routes by whether mail crosses a local domain's boundary.** Out of
+  a local domain to any other: through the gateway. Into a local domain from any
+  other: through the gateway, and back into the local mailbox once scanned. Within
+  one domain, or between two domains neither of which is local: delivered directly,
+  with ICAP scanning as set. The routing table on the relay page and in the README
+  now lists all four cases.
+
 ## v0.5.2 — 23 September 2026
 
 - Changed: **"Test connection" sits on the same line as the upstream server

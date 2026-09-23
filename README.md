@@ -492,9 +492,9 @@ in both directions.
 
 ## Upstream relay
 
-**Admin ▸ Upstream relay** hands outbound mail to another SMTP server — in practice a
-security gateway such as OPSWAT MetaDefender Email Security — which scans it and sends
-it back to Tinpost's SMTP port for delivery. Give it the gateway's host and port,
+**Admin ▸ Upstream relay** hands mail crossing into or out of your local domains to
+another SMTP server — in practice a security gateway such as OPSWAT MetaDefender Email
+Security — which scans it and sends it back to Tinpost's SMTP port for delivery. Give it the gateway's host and port,
 optionally a username and password, and the list of **local domains**. It speaks plain
 SMTP; there is no TLS.
 
@@ -504,12 +504,15 @@ How each message is routed:
 |---|---|
 | From a local domain to the **same** domain | Delivered directly. Never leaves. ICAP scanning applies as usual. |
 | From a local domain to **any other** domain | Handed to the gateway. The sender's copy is marked *relayed, awaiting scan*; the recipients get it when the gateway sends it back. Tinpost's own ICAP scan is skipped. |
+| From any other domain **to a local domain** | Handed to the gateway too, whether it was written in the webmail or arrived over SMTP. The local recipients get it when the gateway sends it back. |
 | Sent back by the gateway | Delivered to the recipients it was relayed for, and never relayed again. |
 | Gateway unreachable, or it refuses the message | Delivered locally **without scanning**, with a footnote in the body giving the error, SMTP reply included. |
-| From any other domain | Inbound. Delivered directly, as before. |
+| Between two domains that are **not local** | Delivered directly. ICAP scanning applies as usual. |
 
 A message addressed to both kinds of recipient is split: colleagues in the sender's
-domain get it straight away, and everyone else gets it through the gateway.
+domain get it straight away, and everyone else gets it through the gateway. Mail that
+the gateway itself delivers to Tinpost — including inbound mail it has already
+scanned — is recognised by its address and delivered directly, never sent round again.
 
 Tinpost recognises the gateway's returned mail by the address it connects from, not by
 anything in the message, because a sender cannot forge its source address. Under
@@ -525,6 +528,11 @@ in, and sends nothing. Relay activity is under the **Relay** channel on the Logs
 
 Mail on its way out is accepted even under the allowlist policy, since the allowlist
 is about which domains Tinpost hosts, and outbound recipients are not hosted here.
+
+Anything that sends straight to Tinpost's SMTP port from another domain into a local
+one — a script, a product's notification mail — now goes through the gateway as well.
+If a sender should bypass the gateway, list its address under gateway return
+addresses; its mail is then delivered directly.
 
 ## Options
 

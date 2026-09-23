@@ -6,15 +6,17 @@ import { readSetting, splitList } from './settings.js';
 import { domainOf } from './db.js';
 
 /**
- * The upstream relay: hands outbound mail to a smart host — in practice a security
- * gateway such as OPSWAT MetaDefender Email Security — which scans it and sends it
- * back to Tinpost's SMTP port, where it is delivered like any other message.
+ * The upstream relay: hands mail that crosses a local domain's boundary to a smart
+ * host — in practice a security gateway such as OPSWAT MetaDefender Email Security —
+ * which scans it and sends it back to Tinpost's SMTP port, where it is delivered
+ * like any other message.
  *
  * Three rules shape everything here:
  *
- *   - Outbound means "from a local domain to a different domain". Mail that stays
- *     inside one domain is delivered directly and never leaves; mail from any other
- *     domain is inbound and is delivered directly too.
+ *   - Mail goes through the gateway when it crosses a local domain's boundary, in
+ *     either direction: out of a local domain to any other, or into a local domain
+ *     from any other. Mail that stays inside one domain is delivered directly, and so
+ *     is mail between two domains neither of which is local.
  *   - Mail that arrives from the gateway is never relayed again. It is recognised by
  *     the address it connects from, which is the one thing a sender cannot forge.
  *   - There is no queue. When the gateway cannot take the message, it is delivered
@@ -59,18 +61,25 @@ export function isLocalSender(config, from) {
 /**
  * Split a message's recipients into those delivered here and those relayed.
  *
- * Only a local sender's mail is ever relayed, and even then a recipient in the
- * sender's own domain is delivered directly. Everything else goes to the gateway —
- * including another local domain, since "the same domain" is the only exemption.
+ * A recipient is relayed when the message crosses a local domain's boundary to reach
+ * them: the sender is local and the recipient is in another domain (outbound), or the
+ * recipient is local and the sender is in another domain (inbound). A recipient in
+ * the sender's own domain is always delivered directly, and so is one where neither
+ * side is local.
  *
  * @returns {{ local: string[], relay: string[] }}
  */
 export function planRoute(config, { from, recipients = [] }) {
-  if (!isLocalSender(config, from)) return { local: [...recipients], relay: [] };
-  const senderDomain = domainOf(from);
+  if (!config.enabled) return { local: [...recipients], relay: [] };
+  const senderDomain = domainOf(from ?? '');
+  const senderLocal = !!senderDomain && config.localDomains.includes(senderDomain);
   const local = [];
   const relay = [];
-  for (const address of recipients) (domainOf(address) === senderDomain ? local : relay).push(address);
+  for (const address of recipients) {
+    const domain = domainOf(address);
+    const crosses = domain !== senderDomain && (senderLocal || config.localDomains.includes(domain));
+    (crosses ? relay : local).push(address);
+  }
   return { local, relay };
 }
 

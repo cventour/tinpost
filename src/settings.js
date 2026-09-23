@@ -182,7 +182,7 @@ export const ICAP_SETTINGS = {
  */
 export const RELAY_SETTINGS = {
   relay_enabled: {
-    label: 'Relay outbound mail through an upstream server',
+    label: 'Relay mail through an upstream server',
     hint: 'While this is off, nothing leaves the machine and every message is delivered straight into its mailbox, exactly as before.',
     type: 'bool',
     default: 0,
@@ -234,7 +234,7 @@ export const RELAY_SETTINGS = {
   },
   relay_local_domains: {
     label: 'Local domains',
-    hint: 'Mail from one of these domains to a different domain is relayed. Mail between two addresses in the same domain is delivered directly and never leaves. Mail from any other domain is treated as inbound and delivered directly.',
+    hint: 'Mail crossing into or out of one of these domains is relayed: from a local domain to any other domain, and from any other domain to a local one. Mail between two addresses in the same domain, and mail between two domains that are not local, is delivered directly.',
     type: 'domains',
     default: '',
     maxLength: 4000,

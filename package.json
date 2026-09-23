@@ -1,6 +1,6 @@
 {
   "name": "tinpost",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Self-contained lab mail server: SMTP sink for any domain plus a webmail UI, offline unless you add an upstream relay.",
   "type": "module",
   "license": "MIT",
