@@ -23,8 +23,23 @@ import { readAllEffective } from './settings.js';
  * complete it. Authentication stays optional throughout, so a sender that skips it
  * is treated exactly as before.
  */
-export function createSmtpServer({ db, blobs, delivery, config, logger = console }) {
+export function createSmtpServer({ db, blobs, delivery, config, logger = console, timeline = null }) {
   const limits = () => readAllEffective(db);
+
+  /**
+   * Put a refusal on the timeline. A message that was turned away never becomes a
+   * stored message, so without this the Timeline page could not show it at all.
+   */
+  const recordRefusal = (session, code, text, to = null) => {
+    timeline?.record({
+      kind: 'refused',
+      sourceIp: session?.remoteAddress,
+      via: session?.mbFromGateway ? 'gateway' : 'smtp',
+      fromAddr: session?.envelope?.mailFrom?.address || session?.mbMailFrom || null,
+      toAddrs: to ?? (session?.envelope?.rcptTo ?? []).map((r) => r.address).join(', '),
+      response: `${code} ${text}`,
+    });
+  };
 
   // Whether the line-by-line conversation is being recorded. Read once per
   // connection rather than per line, which is both cheap and coherent: a session
@@ -104,6 +119,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
         const err = new Error(`Too many recipients (limit is ${maxRecipients})`);
         err.responseCode = 452;
         logger.info?.(`smtp: refused recipient ${address.address} (over the ${maxRecipients} limit)`);
+        recordRefusal(session, 452, err.message, address.address);
         session.mbOutcomeLogged = true;
         return callback(err);
       }
@@ -122,6 +138,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       const err = new Error(`Relay denied for ${domain || 'missing domain'}`);
       err.responseCode = 550;
       logger.info?.(`smtp: rejected ${address.address} (policy=allowlist)`);
+      recordRefusal(session, 550, err.message, address.address);
       session.mbOutcomeLogged = true;
       return callback(err);
     },
@@ -154,6 +171,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
         logger.info?.(
           `smtp: cut off an oversized message from ${session.envelope?.mailFrom?.address ?? 'unknown'}`,
         );
+        recordRefusal(session, 552, 'Message exceeds the configured size limit');
         session.mbOutcomeLogged = true;
 
         const connection = connectionFor(server, session);
@@ -184,6 +202,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
             envelopeFrom: session.envelope.mailFrom?.address || null,
             origin: 'smtp',
             fromGateway: !!session.mbFromGateway,
+            sourceIp: session.remoteAddress,
           });
           logger.info?.(
             `smtp: accepted #${summary.id} from ${summary.from} -> ${summary.addresses.join(', ')}`,
@@ -206,6 +225,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
             logger.info?.(
               `smtp: refused a message from ${session.envelope?.mailFrom?.address ?? 'unknown'} (${err.message})`,
             );
+            recordRefusal(session, e.responseCode, err.message);
             session.mbOutcomeLogged = true;
             return callback(e);
           }
@@ -213,11 +233,13 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
           if (err instanceof RelayLoop) {
             const e = new Error(err.message);
             e.responseCode = 554;
+            recordRefusal(session, 554, err.message);
             session.mbOutcomeLogged = true;
             return callback(e);
           }
 
           logger.error?.(`smtp: delivery failed: ${err.stack || err.message}`);
+          recordRefusal(session, 451, 'Local error processing message');
           session.mbOutcomeLogged = true;
           const e = new Error('Local error processing message');
           e.responseCode = 451;
@@ -238,6 +260,12 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       logger.info?.(
         `smtp: connection from ${session?.remoteAddress || 'unknown'} closed without sending a message`,
       );
+      timeline?.record({
+        kind: 'connection',
+        sourceIp: session?.remoteAddress,
+        via: session?.mbFromGateway ? 'gateway' : 'smtp',
+        response: 'Connected and closed without sending a message',
+      });
     },
   });
 

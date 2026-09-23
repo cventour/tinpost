@@ -33,6 +33,9 @@
       <a class="nav-link subtle" href="/?switch=1">Switch</a>
       <form method="post" action="/signout" class="inline"><button class="linkish">Sign out</button></form>
     <% } %>
+    <a class="nav-link <%= locals.navTimeline ? 'on' : 'subtle' %> nav-timeline" href="/timeline"<%- locals.navTimeline ? ' aria-current="page"' : '' %>>
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-timeline"/></svg>Timeline
+    </a>
     <a class="nav-link subtle" href="/admin">Admin</a>
     <button type="button" class="theme-btn" data-theme-toggle
             title="Switch between light and dark" aria-label="Switch between light and dark">
@@ -41,4 +44,4 @@
     </button>
   </nav>
 </header>
-<main<%- locals.wide ? ' class="wide"' : '' %>>
+<main<%- locals.full ? ' class="wide full"' : locals.wide ? ' class="wide"' : '' %>>

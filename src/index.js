@@ -3,6 +3,7 @@ import { Db } from './db.js';
 import { BlobStore } from './blobstore.js';
 import { Delivery } from './delivery.js';
 import { Scanner } from './scan.js';
+import { Timeline } from './timeline.js';
 import { readSetting } from './settings.js';
 import {
   defaultSmtpPort,
@@ -47,7 +48,9 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
   // The scanner reads its settings per message, so it is built unconditionally and
   // does nothing at all while ICAP scanning is switched off.
   const scanner = new Scanner({ db, logger });
-  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger });
+  // Every message and every refused or empty connection, for the Timeline page.
+  const timeline = new Timeline(db);
+  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger, timeline });
 
   // An explicit --max-size is an instruction, so it seeds the stored setting that
   // the admin page edits. Without the flag, the stored setting stands.
@@ -55,7 +58,7 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
     db.setSetting('smtp_max_size', String(Math.max(1, Math.round(config.maxSize / (1024 * 1024)))));
   }
 
-  let smtp = createSmtpServer({ db, blobs, delivery, config, logger });
+  let smtp = createSmtpServer({ db, blobs, delivery, config, logger, timeline });
   let smtpFallbackReason = null;
 
   try {
@@ -73,7 +76,7 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
     smtpFallbackReason = err.code;
     logger.info?.(`smtp: could not bind port 25 (${err.code}); falling back to ${FALLBACK_SMTP_PORT}`);
     config = loadConfig({ ...flags, ...storedPorts, smtpPort: FALLBACK_SMTP_PORT });
-    smtp = createSmtpServer({ db, blobs, delivery, config, logger });
+    smtp = createSmtpServer({ db, blobs, delivery, config, logger, timeline });
     await smtp.listen();
   }
 
@@ -94,6 +97,7 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
     portNotice: notice,
     logger,
     logs,
+    timeline,
   });
   const webAddress = await web.listen();
 
@@ -108,6 +112,7 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
     blobs,
     delivery,
     scanner,
+    timeline,
     logs,
     ports,
     privilege,

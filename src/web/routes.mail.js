@@ -4,11 +4,21 @@ import { htmlToText } from '../parse.js';
 import { ScanRejected } from '../scan.js';
 import { relayConfig, isLocalSender } from '../relay.js';
 
-const ADDR_COOKIE = 'mb_addr';
+export const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Select a mailbox for this browser. Identity, not authentication — by design. */
+export function setMailboxCookie(reply, addr) {
+  reply.setCookie(ADDR_COOKIE, addr, {
+    path: '/',
+    httpOnly: false,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  });
+}
+
 export async function registerMailRoutes(app) {
-  const { db, blobs, delivery, config, portNotice } = app.mb;
+  const { db, blobs, delivery, config, portNotice, timeline } = app.mb;
 
   /**
    * The address in the cookie. Identity, not authentication — by design.
@@ -58,12 +68,7 @@ export async function registerMailRoutes(app) {
         smtpPort: config.smtpPort,
       });
     }
-    reply.setCookie(ADDR_COOKIE, addr, {
-      path: '/',
-      httpOnly: false,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30,
-    });
+    setMailboxCookie(reply, addr);
     return reply.redirect('/mail');
   });
 
@@ -179,6 +184,7 @@ export async function registerMailRoutes(app) {
       attachments: db.getAttachments(id, { includeInline: false }),
       view,
       folder: m.from_addr === addr ? 'sent' : 'inbox',
+      fromTimeline: req.query.from === 'timeline',
     });
   });
 
@@ -386,12 +392,21 @@ export async function registerMailRoutes(app) {
         attachments,
         inReplyTo: fields.inReplyTo || null,
         references: fields.references || null,
-      });
+      }, { sourceIp: req.ip });
     } catch (err) {
       // Outbound mail goes through the same scanner as inbound, so a blocked
       // attachment comes back as an error on the form the draft was typed into
       // rather than as a 500 that loses it.
       if (err instanceof ScanRejected) {
+        timeline?.record({
+          kind: 'refused',
+          sourceIp: req.ip,
+          via: 'webmail',
+          fromAddr: addr,
+          toAddrs: [...to, ...cc].join(', '),
+          subject: fields.subject ?? '',
+          response: err.message,
+        });
         return renderComposeError(
           reply,
           addr,

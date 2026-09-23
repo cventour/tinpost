@@ -6,6 +6,7 @@ import { Db } from '../src/db.js';
 import { BlobStore } from '../src/blobstore.js';
 import { Delivery } from '../src/delivery.js';
 import { Scanner } from '../src/scan.js';
+import { Timeline } from '../src/timeline.js';
 
 /** A throwaway instance on its own temp data dir, for one test. */
 export async function makeLab(overrides = {}) {
@@ -21,7 +22,8 @@ export async function makeLab(overrides = {}) {
   // Built the way start() builds it. ICAP scanning is off by default, so this does
   // nothing until a test turns it on with useIcap().
   const scanner = new Scanner({ db, logger: { info() {}, error() {} } });
-  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger: { info() {}, error() {} } });
+  const timeline = new Timeline(db);
+  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger: { info() {}, error() {} }, timeline });
 
   return {
     config,
@@ -29,6 +31,7 @@ export async function makeLab(overrides = {}) {
     blobs,
     delivery,
     scanner,
+    timeline,
     async cleanup() {
       db.close();
       await rm(dataDir, { recursive: true, force: true });

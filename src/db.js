@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS messages (
@@ -63,6 +63,30 @@ CREATE TABLE IF NOT EXISTS domains (
   icap_scan  INTEGER
 );
 
+-- The timeline: one row per thing the instance saw happen. A message row points at
+-- the message it stored, but not by foreign key: deleting a mailbox must not erase
+-- the history of what arrived.
+CREATE TABLE IF NOT EXISTS events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  at         TEXT NOT NULL,
+  -- delivered, relayed, returned, failed, refused or connection
+  kind       TEXT NOT NULL,
+  source_ip  TEXT,
+  -- smtp, webmail or gateway
+  via        TEXT,
+  from_addr  TEXT,
+  to_addrs   TEXT,
+  subject    TEXT,
+  message_id INTEGER,
+  -- The mailbox to open the message as: one that can actually see it.
+  open_as    TEXT,
+  -- outbound, inbound or returned when the upstream relay was involved; upstream when
+  -- it was, but the direction predates the timeline
+  relay      TEXT,
+  response   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_at ON events(at);
 CREATE INDEX IF NOT EXISTS idx_recipients_address ON recipients(address);
 CREATE INDEX IF NOT EXISTS idx_recipients_message ON recipients(message_id);
 CREATE INDEX IF NOT EXISTS idx_messages_from ON messages(from_addr);
@@ -120,6 +144,38 @@ export class Db {
     if (!recipientColumns.includes('delivered')) {
       this.#db.exec('ALTER TABLE recipients ADD COLUMN delivered INTEGER NOT NULL DEFAULT 1');
     }
+
+    this.#backfillEvents();
+  }
+
+  /**
+   * Give mail stored before the timeline existed a place on it, once. What was not
+   * recorded then — the source address, the relay's exact reply — is left empty
+   * rather than guessed.
+   */
+  #backfillEvents() {
+    if (this.getSetting('events_backfilled') === '1') return;
+    const messages = this.#db.prepare('SELECT * FROM messages ORDER BY id').all();
+    for (const m of messages) {
+      const recipients = this.getRecipients(m.id);
+      const visible = recipients.find((r) => r.delivered);
+      const kind = { relayed: 'relayed', failed: 'failed', returned: 'returned' }[m.relay_status] ?? 'delivered';
+      this.insertEvent({
+        at: m.received_at,
+        kind,
+        via: m.origin === 'webmail' ? 'webmail' : m.relay_status === 'returned' ? 'gateway' : 'smtp',
+        fromAddr: m.from_addr,
+        toAddrs: recipients.map((r) => r.address).join(', '),
+        subject: m.subject,
+        messageId: m.id,
+        // A message still waiting on the gateway is only visible to its sender.
+        openAs: kind === 'relayed' ? m.from_addr : (visible?.address ?? m.from_addr),
+        // Which way it went was not recorded before the timeline, only that it did.
+        relay: m.relay_status === 'returned' ? 'returned' : m.relay_status ? 'upstream' : null,
+        response: m.relay_detail,
+      });
+    }
+    this.setSetting('events_backfilled', '1');
   }
 
   #bootstrapSettings() {
@@ -394,7 +450,82 @@ export class Db {
 
   purgeAll() {
     const info = this.#db.prepare('DELETE FROM messages').run();
+    // A reset lab starts with an empty history too.
+    this.#db.prepare('DELETE FROM events').run();
     return Number(info.changes);
+  }
+
+  // ---------- timeline ----------
+
+  insertEvent(e) {
+    const info = this.#db
+      .prepare(
+        `INSERT INTO events (at, kind, source_ip, via, from_addr, to_addrs, subject, message_id, open_as, relay, response)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        e.at ?? new Date().toISOString(),
+        e.kind,
+        e.sourceIp ?? null,
+        e.via ?? null,
+        e.fromAddr ?? null,
+        e.toAddrs ?? null,
+        e.subject ?? null,
+        e.messageId ?? null,
+        e.openAs ?? null,
+        e.relay ?? null,
+        e.response ?? null,
+      );
+    return Number(info.lastInsertRowid);
+  }
+
+  getEvent(id) {
+    return this.#db.prepare('SELECT * FROM events WHERE id = ?').get(id) ?? null;
+  }
+
+  /**
+   * The WHERE clause shared by the list, the counts and the chart, so the three can
+   * never disagree about which events are in view.
+   */
+  #eventWhere({ from, to, filter = 'all', q = '' }) {
+    const clauses = ['at >= ?', 'at < ?'];
+    const params = [from, to];
+    const byFilter = {
+      relay: 'relay IS NOT NULL',
+      failed: "kind IN ('failed', 'refused')",
+      delivered: "kind = 'delivered'",
+      returned: "kind = 'returned'",
+      connections: "kind = 'connection'",
+    };
+    if (byFilter[filter]) clauses.push(byFilter[filter]);
+    const term = String(q ?? '').trim().toLowerCase();
+    if (term) {
+      clauses.push(
+        "(instr(lower(coalesce(from_addr,'') || ' ' || coalesce(to_addrs,'') || ' ' || coalesce(source_ip,'') || ' ' || coalesce(subject,'') || ' ' || coalesce(response,'')), ?) > 0)",
+      );
+      params.push(term);
+    }
+    return { sql: clauses.join(' AND '), params };
+  }
+
+  /** Events in a window, newest first. `before` pages back by id. */
+  listEvents({ from, to, filter, q, before = null, limit = 200 }) {
+    const where = this.#eventWhere({ from, to, filter, q });
+    const page = before ? ' AND id < ?' : '';
+    return this.#db
+      .prepare(`SELECT * FROM events WHERE ${where.sql}${page} ORDER BY at DESC, id DESC LIMIT ?`)
+      .all(...where.params, ...(before ? [before] : []), limit);
+  }
+
+  countEvents({ from, to, filter, q }) {
+    const where = this.#eventWhere({ from, to, filter, q });
+    return Number(this.#db.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where.sql}`).get(...where.params).n);
+  }
+
+  /** Time and kind of every event in the window: what the activity chart is drawn from. */
+  eventMarks({ from, to, q }) {
+    const where = this.#eventWhere({ from, to, filter: 'all', q });
+    return this.#db.prepare(`SELECT at, kind FROM events WHERE ${where.sql}`).all(...where.params);
   }
 
   /** Hashes still pointed at by any row — the keep-set for blob GC. */

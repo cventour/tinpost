@@ -608,8 +608,67 @@
     );
   }
 
+  /**
+   * The Timeline page. The chart remembers being collapsed per browser; Custom opens
+   * the date fields in place rather than reloading; and while the window ends now,
+   * new events are announced as a count to show rather than pushed into the table
+   * under the reader's cursor.
+   */
+  function initTimeline(page) {
+    var chart = document.querySelector('[data-tl-chart]');
+    var toggle = document.querySelector('[data-tl-chart-toggle]');
+    var label = document.querySelector('[data-tl-chart-label]');
+    var KEY = 'mb.timeline.chart';
+
+    function setChart(open, remember) {
+      if (!chart) return;
+      chart.classList.toggle('closed', !open);
+      if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (label) label.textContent = open ? 'Collapse' : 'Expand';
+      if (remember) {
+        try { localStorage.setItem(KEY, open ? 'open' : 'closed'); } catch (e) {}
+      }
+    }
+    try { if (localStorage.getItem(KEY) === 'closed') setChart(false, false); } catch (e) {}
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        setChart(chart.classList.contains('closed'), true);
+      });
+    }
+
+    var custom = document.querySelector('[data-tl-custom]');
+    var customLink = document.querySelector('[data-tl-custom-toggle]');
+    if (custom && customLink) {
+      customLink.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        custom.hidden = !custom.hidden;
+        if (!custom.hidden) {
+          var first = custom.querySelector('input[type=datetime-local]');
+          if (first) first.focus();
+        }
+      });
+    }
+
+    if (page.getAttribute('data-live') !== '1' || typeof EventSource === 'undefined') return;
+    var state = document.querySelector('[data-tl-live-state]');
+    var banner = document.querySelector('[data-tl-new]');
+    var countEl = document.querySelector('[data-tl-new-count]');
+    var fresh = 0;
+    var es = new EventSource('/timeline/stream');
+    es.addEventListener('open', function () { if (state) state.setAttribute('data-tl-live-state', 'live'); });
+    es.addEventListener('error', function () { if (state) state.setAttribute('data-tl-live-state', 'down'); });
+    es.addEventListener('timeline', function () {
+      fresh += 1;
+      if (countEl) countEl.textContent = fresh + (fresh === 1 ? ' event' : ' events');
+      if (banner) banner.hidden = false;
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     initNumberWheelGuard();
+
+    var tlPage = document.querySelector('[data-tl-page]');
+    if (tlPage) initTimeline(tlPage);
 
     var combo = document.querySelector('[data-mailbox-combo]');
     if (combo) initMailboxCombo(combo);

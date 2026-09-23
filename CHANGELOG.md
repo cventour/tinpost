@@ -4,6 +4,28 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.0 — 23 September 2026
+
+- New: **a Timeline page.** Beside Admin in the top bar: every message and
+  connection the instance has seen, across all mailboxes, in one table, newest
+  first, under a small activity chart that collapses to a single line. Each row
+  gives the time to the millisecond, the source IP and whether it came in over SMTP,
+  from the webmail or from the gateway, sender and recipients, the result, whether
+  the upstream relay was involved and in which direction, and the relay's exact
+  reply. Windows of 15 minutes, 1 hour, 24 hours, 7 days or a custom start and end;
+  filters for relay traffic, failures, local deliveries, gateway returns and bare
+  connections; search across addresses, IPs, subjects and responses.
+
+- New: **open a message straight from the timeline.** Clicking a row switches to a
+  mailbox that holds the message and shows it in the ordinary message view, with a
+  banner saying which mailbox you are now reading and a way back.
+
+- New: **refusals and empty connections are recorded.** A message refused at the
+  SMTP layer, or a client that connected and left without sending, now has a row of
+  its own, so the timeline shows what never became a message too. Stored in the
+  database, so it survives a restart; mail from earlier versions is added once on
+  first start. Purging the lab clears it.
+
 ## v0.6.1 — 23 September 2026
 
 - Fixed: **mail between two local domains is internal.** With more than one local

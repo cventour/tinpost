@@ -268,6 +268,33 @@ Mail composed in the UI goes through exactly the same delivery path as mail that
 arrived over SMTP, so it is stored as a genuine RFC822 message and is
 indistinguishable from received mail.
 
+## Timeline
+
+**Timeline**, beside Admin in the top bar, shows everything the instance has seen,
+across every mailbox, newest first: each message stored, each message relayed to or
+returned by the upstream gateway, each relay failure, each refusal (`550`, `552` and
+the like), and each connection that came and went without sending anything.
+
+- A small activity chart sits above the table, one bar per slice of the window,
+  coloured by what happened. **Collapse** folds it to a single line; the page
+  remembers that per browser.
+- Pick the window: 15 minutes, 1 hour, 24 hours, 7 days, or **Custom** with a start
+  and an end. Every time on the page is UTC.
+- Filter to relay traffic, failures, local deliveries, messages returned by the
+  gateway or bare connections, or search by address, IP, subject or response text.
+- Each row gives the time to the millisecond, the source IP and whether it came in
+  over SMTP, from the webmail or from the gateway, sender and recipients, the result,
+  whether the relay was involved and which way, and the relay's exact reply.
+- **Click a message to open it.** Tinpost switches to a mailbox that holds it — the
+  recipient's, or the sender's while the gateway still has it — and shows it in the
+  ordinary message view, ready to reply to or download.
+- While the window ends now, new events are announced as a count to show, rather
+  than pushed into the table under your cursor.
+
+The timeline is stored in the database, so it survives a restart. Mail stored before
+v0.7.0 is added to it once, on the first start, without the details that were not
+recorded then. **Purge everything** on the Storage page clears it too.
+
 ## Admin
 
 `/admin` has no password. Gating it would protect nothing: the mailboxes beside it are

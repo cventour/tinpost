@@ -7,6 +7,7 @@ import {
   relayConfig,
   relayAddress,
   planRoute,
+  isLocalSender,
   relayMessage,
   hasBeenRelayed,
   withRelayFootnote,
@@ -26,10 +27,13 @@ export class Delivery extends EventEmitter {
   #maxSize;
   #scanner;
   #logger;
+  #timeline;
 
-  constructor({ db, blobs, maxSize, scanner = null, logger = console }) {
+  constructor({ db, blobs, maxSize, scanner = null, logger = console, timeline = null }) {
     super();
     this.#logger = logger;
+    // Optional: every stored message becomes an event on the Timeline page.
+    this.#timeline = timeline;
     this.#db = db;
     this.#blobs = blobs;
     this.#maxSize = maxSize;
@@ -47,18 +51,18 @@ export class Delivery extends EventEmitter {
    * which is delivered and never relayed again.
    *
    * @param {{ rawHash: string, size: number, envelopeRecipients?: string[], envelopeFrom?: string|null,
-   *           origin?: string, fromGateway?: boolean }} input
+   *           origin?: string, fromGateway?: boolean, sourceIp?: string|null }} input
    */
-  async deliverStored({ rawHash, size, envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false }) {
+  async deliverStored({ rawHash, size, envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false, sourceIp = null }) {
     const raw = await this.#blobs.read(rawHash);
-    return this.#persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom, origin, fromGateway });
+    return this.#persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom, origin, fromGateway, sourceIp });
   }
 
   /** Store a raw buffer we already hold (tests, imports). */
-  async deliverRaw(raw, { envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false } = {}) {
+  async deliverRaw(raw, { envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false, sourceIp = null } = {}) {
     const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
     const { hash, size } = await this.#blobs.put(Readable.from([buf]), { maxSize: this.#maxSize });
-    return this.#persist({ raw: buf, rawHash: hash, size, envelopeRecipients, envelopeFrom, origin, fromGateway });
+    return this.#persist({ raw: buf, rawHash: hash, size, envelopeRecipients, envelopeFrom, origin, fromGateway, sourceIp });
   }
 
   /**
@@ -70,7 +74,7 @@ export class Delivery extends EventEmitter {
    *           text?: string, html?: string|null, attachments?: Array<{filename:string,contentType:string,hash:string,size:number}>,
    *           inReplyTo?: string|null, references?: string|null }} draft
    */
-  async deliverComposed(draft) {
+  async deliverComposed(draft, { sourceIp = null } = {}) {
     const attachments = [];
     for (const a of draft.attachments ?? []) {
       attachments.push({
@@ -105,10 +109,11 @@ export class Delivery extends EventEmitter {
       envelopeRecipients: [...(draft.to ?? []), ...(draft.cc ?? [])],
       envelopeFrom: draft.from,
       origin: 'webmail',
+      sourceIp,
     });
   }
 
-  async #persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom = null, origin, fromGateway = false }) {
+  async #persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom = null, origin, fromGateway = false, sourceIp = null }) {
     const parsed = await parseMessage(raw);
 
     // Envelope recipients (RCPT TO) are authoritative for where mail lands — that is
@@ -137,6 +142,7 @@ export class Delivery extends EventEmitter {
         senderCopy: false,
         relayStatus: 'returned',
         relayDetail: `Returned by the upstream gateway after scanning`,
+        event: { sourceIp, via: 'gateway', relay: 'returned', response: 'Scanned and returned by the gateway' },
       });
     }
 
@@ -162,7 +168,11 @@ export class Delivery extends EventEmitter {
       });
     }
 
-    if (!route.relay.length) return this.#store({ parsed, rawHash, size, recipients, origin });
+    const via = origin === 'webmail' ? 'webmail' : 'smtp';
+    if (!route.relay.length) return this.#store({ parsed, rawHash, size, recipients, origin, event: { sourceIp, via } });
+
+    // Which way the message crosses the boundary: out of a local domain, or into one.
+    const direction = isLocalSender(relay, from) ? 'outbound' : 'inbound';
 
     // A message stamped by a Tinpost relay that did not come back from the gateway is
     // going round in a circle: the gateway sent it back from an address that is not
@@ -192,6 +202,7 @@ export class Delivery extends EventEmitter {
         origin,
         relayStatus: 'relayed',
         relayDetail: `Handed to ${where} for ${route.relay.join(', ')}: ${result.response}`,
+        event: { sourceIp, via, relay: direction, response: result.response },
       });
     }
 
@@ -214,10 +225,11 @@ export class Delivery extends EventEmitter {
       origin,
       relayStatus: 'failed',
       relayDetail: `Could not relay to ${where} for ${failed.join(', ')}: ${result.error}`,
+      event: { sourceIp, via, relay: direction, response: result.error },
     });
   }
 
-  async #store({ parsed, rawHash, size, recipients, origin, senderCopy = true, relayStatus = null, relayDetail = null }) {
+  async #store({ parsed, rawHash, size, recipients, origin, senderCopy = true, relayStatus = null, relayDetail = null, event = {} }) {
     let htmlHash = null;
     if (parsed.html) {
       const r = await this.#blobs.put(Readable.from([Buffer.from(parsed.html, 'utf8')]));
@@ -276,6 +288,22 @@ export class Delivery extends EventEmitter {
       addresses: [...new Set(visible.filter(Boolean))],
       relayStatus,
     };
+
+    // Opened from the timeline as a mailbox that can actually see it: a recipient who
+    // has it, or the sender while it is still with the gateway.
+    const holder = recipients.find((r) => r.delivered !== false)?.address;
+    this.#timeline?.record({
+      kind: { relayed: 'relayed', failed: 'failed', returned: 'returned' }[relayStatus] ?? 'delivered',
+      sourceIp: event.sourceIp,
+      via: event.via,
+      fromAddr: parsed.fromAddr || null,
+      toAddrs: recipients.map((r) => r.address).join(', '),
+      subject: parsed.subject,
+      messageId: id,
+      openAs: relayStatus === 'relayed' || !holder ? parsed.fromAddr : holder,
+      relay: event.relay ?? null,
+      response: event.response ?? null,
+    });
 
     // Drives the live inbox: the web layer forwards these over SSE to whoever is
     // looking at one of the affected mailboxes.

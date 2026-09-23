@@ -10,6 +10,7 @@ import ejs from 'ejs';
 import { LogBuffer } from '../logbuf.js';
 import { registerMailRoutes } from './routes.mail.js';
 import { registerAdminRoutes } from './routes.admin.js';
+import { registerTimelineRoutes } from './routes.timeline.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,9 @@ export async function createWebServer({
   // a test that builds only the web layer still gets a working one, just an empty
   // one until something writes to it.
   logs = new LogBuffer(),
+  // Optional: without one the Timeline page still reads the history, it just does
+  // not hear about new events live.
+  timeline = null,
 }) {
   const app = Fastify({ logger: false, bodyLimit: config.maxSize });
 
@@ -45,7 +49,7 @@ export async function createWebServer({
     defaultContext: { fmtBytes, fmtDate, escapeHtml, version },
   });
 
-  app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger, logs });
+  app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger, logs, timeline });
 
   // Two static assets only. Serving them as explicit routes rather than pulling in
   // a static-file plugin keeps the path-traversal surface at exactly zero.
@@ -73,6 +77,7 @@ export async function createWebServer({
 
   await registerMailRoutes(app);
   await registerAdminRoutes(app);
+  await registerTimelineRoutes(app);
 
   return {
     app,

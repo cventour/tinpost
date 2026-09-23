@@ -1,5 +1,11 @@
 <%- include('partials/head', { title: (m.subject || '(no subject)') + ' — Tinpost', addr }) %>
 
+<% if (locals.fromTimeline) { %>
+  <p class="notice timeline-notice">
+    <span>Opened from the timeline. You are now reading the <b><%= addr %></b> mailbox, which holds this message.</span>
+    <a href="/timeline">&larr; Back to Timeline</a>
+  </p>
+<% } %>
 <section class="panel message">
   <div class="msg-head">
     <a class="back" href="/mail?folder=<%= folder %>">&larr; <%= folder === 'sent' ? 'Sent' : 'Inbox' %></a>

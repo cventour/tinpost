@@ -1,0 +1,147 @@
+<%- include('partials/head', { title, addr }) %>
+
+<div class="tl-head">
+  <div>
+    <h1>Timeline</h1>
+    <p class="lede">
+      Every message and connection this instance has seen, across all mailboxes, newest
+      first. Click a message to open it in its mailbox.
+    </p>
+  </div>
+  <div class="tl-controls">
+    <nav class="tl-ranges" aria-label="Time range">
+      <% ranges.forEach(function (r) { %>
+        <a href="<%= r[0] === 'custom' ? hrefFor({ range: 'custom', from: null, to: null, before: null }) : hrefFor({ range: r[0], from: null, to: null, before: null }) %>"
+           class="<%= window.range === r[0] ? 'on' : '' %>"
+           <%- window.range === r[0] ? 'aria-current="true"' : '' %>
+           <%- r[0] === 'custom' ? 'data-tl-custom-toggle' : '' %>><%= r[1] %></a>
+      <% }) %>
+    </nav>
+    <% if (window.live && !locals.newestHref) { %>
+      <span class="tl-live" data-tl-live-state="connecting" title="New events are announced as they happen">
+        <span class="tl-live-dot" aria-hidden="true"></span>Live
+      </span>
+    <% } %>
+  </div>
+</div>
+
+<form method="get" action="/timeline" class="tl-custom" data-tl-custom <%- window.range === 'custom' ? '' : 'hidden' %>>
+  <input type="hidden" name="range" value="custom">
+  <input type="hidden" name="filter" value="<%= filter %>">
+  <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
+  <label><span>From <span class="dim">(UTC)</span></span>
+    <input type="datetime-local" name="from" value="<%= window.fromInput %>" required>
+  </label>
+  <label><span>To <span class="dim">(UTC)</span></span>
+    <input type="datetime-local" name="to" value="<%= window.toInput %>" required>
+  </label>
+  <button type="submit" class="btn small">Apply</button>
+  <% if (window.error) { %><span class="tl-custom-error" role="alert"><%= window.error %> Showing the last hour instead.</span><% } %>
+</form>
+
+<p class="tl-new" data-tl-new hidden>
+  <a href="<%= hrefFor({ before: null }) %>" data-tl-new-link><span data-tl-new-count>0</span> new &mdash; show them</a>
+</p>
+
+<section class="tl-chart" data-tl-chart aria-label="Activity">
+  <div class="tl-chart-head">
+    <span class="tl-chart-title">Activity</span>
+    <span class="tl-chart-sum"><%= windowLabel %> &middot; <%= chart.messages %> message<%= chart.messages === 1 ? '' : 's' %> &middot; <%= chart.connections %> connection<%= chart.connections === 1 ? '' : 's' %></span>
+    <span class="tl-spark" data-tl-spark aria-hidden="true">
+      <% chart.bars.forEach(function (b) { %><i class="<%= b.hasMail ? 'mail' : '' %>" style="height: <%= b.spark %>px"></i><% }) %>
+    </span>
+    <button type="button" class="btn small ghost tl-chart-toggle" data-tl-chart-toggle aria-expanded="true" aria-controls="tl-chart-body">
+      <span data-tl-chart-label>Collapse</span>
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
+  </div>
+  <div class="tl-chart-body" id="tl-chart-body" data-tl-chart-body>
+    <div class="tl-bars">
+      <% chart.bars.forEach(function (b) { %>
+        <div class="tl-bar" title="<%= b.tip %>">
+          <% b.segs.forEach(function (s) { %><i class="k-<%= s.kind %>" style="height: <%= s.pct.toFixed(2) %>%"></i><% }) %>
+        </div>
+      <% }) %>
+    </div>
+    <div class="tl-ticks"><% chart.ticks.forEach(function (t) { %><span><%= t %></span><% }) %></div>
+    <ul class="tl-legend">
+      <% chart.legend.forEach(function (l) { %>
+        <li><i class="k-<%= l.kind %>" aria-hidden="true"></i><%= l.label %> <b><%= l.count %></b></li>
+      <% }) %>
+    </ul>
+  </div>
+</section>
+
+<div class="tl-toolbar">
+  <nav class="tl-chips" aria-label="Filter events">
+    <% chips.forEach(function (c) { %>
+      <a href="<%= hrefFor({ filter: c.id === 'all' ? null : c.id, before: null }) %>" class="<%= c.on ? 'on' : '' %>" <%- c.on ? 'aria-current="true"' : '' %>>
+        <%= c.label %> <span class="n"><%= c.count %></span>
+      </a>
+    <% }) %>
+  </nav>
+  <form method="get" action="/timeline" class="tl-search" role="search">
+    <input type="hidden" name="range" value="<%= window.range %>">
+    <% if (window.range === 'custom') { %>
+      <input type="hidden" name="from" value="<%= window.fromInput %>">
+      <input type="hidden" name="to" value="<%= window.toInput %>">
+    <% } %>
+    <% if (filter !== 'all') { %><input type="hidden" name="filter" value="<%= filter %>"><% } %>
+    <label class="sr-only" for="tl-q">Search the timeline</label>
+    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+    <input type="search" id="tl-q" name="q" value="<%= q %>" placeholder="Address, IP or response text">
+  </form>
+</div>
+
+<section class="tl-table-wrap" aria-label="Events">
+  <% if (rows.length) { %>
+    <table class="tl-table">
+      <thead>
+        <tr>
+          <th scope="col">Time (UTC)</th>
+          <th scope="col">Source</th>
+          <th scope="col">From &rarr; To</th>
+          <th scope="col">Result</th>
+          <th scope="col">Mail relay</th>
+          <th scope="col">Relay response</th>
+          <th scope="col" class="num">Msg</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function (r) { %>
+          <tr class="k-<%= r.kind %><%= r.href ? ' linked' : '' %>">
+            <td class="mono"><time datetime="<%= r.iso %>"><%= r.time %></time></td>
+            <td><span class="mono"><%= r.source %></span><% if (r.via) { %><small><%= r.via %></small><% } %></td>
+            <td class="who">
+              <% if (r.href) { %>
+                <a class="tl-open" href="<%= r.href %>" title="Open <%= r.msg %> in <%= r.openAs %>"><%= r.from || '(no sender)' %> <span class="arrow">&rarr;</span> <%= r.to || '(no recipient)' %></a>
+              <% } else if (r.from || r.to) { %>
+                <span><%= r.from || '(no sender)' %> <span class="arrow">&rarr;</span> <%= r.to || '(no recipient)' %></span>
+              <% } else { %>
+                <span class="dim">No message sent</span>
+              <% } %>
+              <% if (r.subject) { %><small><%= r.subject %></small><% } %>
+            </td>
+            <td><span class="tl-tag k-<%= r.kind %>"><%= r.result %></span></td>
+            <td class="<%= r.relayed ? '' : 'dim' %>"><%= r.relay %></td>
+            <td class="mono resp" title="<%= r.response %>"><%= r.response %></td>
+            <td class="num"><% if (r.href) { %><span class="msg"><%= r.msg %></span><% } %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="tl-empty">Nothing in this window<%= filter !== 'all' || q ? ' matches' : '' %>. Try a longer range<%= filter !== 'all' || q ? ' or clear the filter' : '' %>.</p>
+  <% } %>
+  <div class="tl-foot">
+    <span>Showing <%= shown %> of <%= total %> event<%= total === 1 ? '' : 's' %> in this window</span>
+    <span class="tl-pager">
+      <% if (locals.newestHref) { %><a class="btn small ghost" href="<%= newestHref %>">Newest</a><% } %>
+      <% if (olderHref) { %><a class="btn small ghost" href="<%= olderHref %>">Load older</a><% } %>
+    </span>
+  </div>
+</section>
+
+<div data-tl-page data-live="<%= window.live && !locals.newestHref ? '1' : '0' %>"></div>
+
+<%- include('partials/foot') %>
