@@ -18,15 +18,57 @@ conversations in an isolated environment.
 
 ## Requirements
 
-Node.js 22.5 or newer; Node 24 LTS or later is recommended. That is the whole list.
-There is no database to install and nothing that compiles — mail storage uses Node's
-built-in SQLite plus ordinary files on disk. It runs the same on macOS, Linux and
-Windows.
+Node.js 22.5 or newer; Node 24 LTS or later is recommended. **That is the whole
+list.** There is no database to install, nothing that compiles, and no native module
+anywhere in the dependency tree — mail storage uses Node's built-in SQLite plus
+ordinary files on disk. Tinpost never shells out to another program, so there is no
+`sudo`, no service manager and no container it depends on. It runs the same on macOS,
+Windows and Linux.
+
+If you do not have Node yet:
+
+| | |
+|---|---|
+| macOS | `brew install node` — or the installer from [nodejs.org](https://nodejs.org) |
+| Windows | `winget install OpenJS.NodeJS.LTS` — or the `.msi` from [nodejs.org](https://nodejs.org) |
+| Debian / Ubuntu | `curl -fsSL https://deb.nodesource.com/setup_24.x \| sudo -E bash - && sudo apt install nodejs` |
+
+Check it with `node --version`. Anything below 22.5 has no built-in SQLite, and
+Tinpost says so plainly rather than failing with a stack trace.
+
+## Installing
+
+Tinpost is not published to the npm registry, so install it from the repository.
+The same three commands work on all three platforms — use PowerShell on Windows,
+any shell elsewhere:
+
+```bash
+git clone https://github.com/cventour/tinpost.git
+cd tinpost
+npm ci
+```
+
+`npm ci` downloads pure JavaScript only; no build step runs and no compiler is
+needed. Then start it:
+
+```bash
+npm start
+```
+
+To get a `tinpost` command on your PATH instead, install the checkout globally:
+
+```bash
+npm install -g .
+tinpost serve
+```
+
+On Windows that creates `tinpost.cmd` in your npm prefix, so `tinpost serve` works
+from PowerShell and from `cmd.exe` alike.
 
 ## Quick start
 
 ```bash
-npx tinpost serve
+npm start
 ```
 
 That prints the URLs:
@@ -41,6 +83,15 @@ That prints the URLs:
 Open the webmail URL, type any address — `alice@lab.local` will do — and you are in
 that mailbox. Send something to it:
 
+PowerShell, on any platform:
+
+```powershell
+$smtp = [System.Net.Mail.SmtpClient]::new('127.0.0.1', 2525)
+$smtp.Send('bob@corp.test', 'alice@lab.local', 'Hello', 'A first message.')
+```
+
+Or with `swaks`, if you have it:
+
 ```bash
 swaks --to alice@lab.local --from bob@corp.test --server 127.0.0.1:2525 --body "hello"
 ```
@@ -49,8 +100,9 @@ It appears in the open page within a second, without a reload.
 
 ## Sending mail to it
 
-Point any client or library at `127.0.0.1:2525`. There is no authentication and no
-TLS, because lab senders are scripts on loopback.
+Point any client or library at `127.0.0.1:2525`. There is no TLS, because lab senders
+are scripts on loopback. `AUTH` is offered and accepts any credential at all, but is
+never required — see [Authentication](#authentication).
 
 Node:
 
@@ -198,6 +250,106 @@ test how a client behaves against a server that refuses it.
 `STARTTLS` is still not offered. A lab sender would need a certificate it could
 trust, and issuing one for a `.lab` name is a great deal of ceremony for a server
 whose whole point is that nothing about it is secret.
+
+## Keeping it running
+
+Nothing below is required — `npm start` in a terminal is a perfectly good way to run
+a lab for an afternoon, and Tinpost needs no service manager. These are only for when
+you want it back after a reboot. Each uses what the platform already ships; none
+needs extra software.
+
+Replace `/path/to/tinpost` and the Node path with your own. `node --version` and
+`which node` (`Get-Command node` on Windows) will tell you them.
+
+### macOS — launchd
+
+Save as `~/Library/LaunchAgents/local.tinpost.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.tinpost</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/path/to/tinpost/src/cli.js</string>
+    <string>serve</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/tinpost.log</string>
+  <key>StandardErrorPath</key><string>/tmp/tinpost.log</string>
+</dict>
+</plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/local.tinpost.plist
+```
+
+`launchctl unload` the same path to stop it. A LaunchAgent runs as you, so it cannot
+bind port 25; leave the SMTP port at 2525, or use a LaunchDaemon in
+`/Library/LaunchDaemons` if you need the standard port.
+
+### Windows — Task Scheduler
+
+Built into Windows, so there is nothing to install. From an elevated PowerShell:
+
+```powershell
+$node = (Get-Command node).Source
+$action  = New-ScheduledTaskAction -Execute $node -Argument 'C:\path\to\tinpost\src\cli.js serve' -WorkingDirectory 'C:\path\to\tinpost'
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName 'Tinpost' -Action $action -Trigger $trigger -Settings $settings -User 'SYSTEM' -RunLevel Highest
+Start-ScheduledTask -TaskName 'Tinpost'
+```
+
+`Stop-ScheduledTask -TaskName 'Tinpost'` stops it; `Unregister-ScheduledTask` removes
+it. Windows does not reserve ports below 1024, so an ordinary account can bind port 25
+there — `-User 'SYSTEM'` is only so the task runs with nobody logged in.
+
+You will likely need a firewall rule before another machine can reach it:
+
+```powershell
+New-NetFirewallRule -DisplayName 'Tinpost SMTP' -Direction Inbound -Protocol TCP -LocalPort 2525 -Action Allow
+New-NetFirewallRule -DisplayName 'Tinpost web'  -Direction Inbound -Protocol TCP -LocalPort 8025 -Action Allow
+```
+
+### Linux — systemd
+
+Save as `/etc/systemd/system/tinpost.service`:
+
+```ini
+[Unit]
+Description=Tinpost lab mail server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tinpost
+WorkingDirectory=/path/to/tinpost
+ExecStart=/usr/bin/node /path/to/tinpost/src/cli.js serve --host 0.0.0.0 --data-dir /var/lib/tinpost
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tinpost
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now tinpost
+```
+
+To take port 25 without running as root, add `AmbientCapabilities=CAP_NET_BIND_SERVICE`
+and `CapabilityBoundingSet=CAP_NET_BIND_SERVICE` to the `[Service]` block, then
+`--smtp-port 25` to `ExecStart`. Debian's standard image enables `postfix` on
+`127.0.0.1:25`, which will hold the port — `systemctl disable --now postfix` first.
 
 ## Attachment scanning over ICAP
 

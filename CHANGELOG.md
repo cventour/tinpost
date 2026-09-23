@@ -4,6 +4,21 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.4.2 — 23 September 2026
+
+- Fixed: **the quick start told you to run a command that does not exist.** `npx
+  tinpost serve` cannot work — Tinpost is not published to the npm registry. The
+  README now gives the install that does work, `git clone` then `npm ci`, in the same
+  three commands on all three platforms.
+
+- New: **install and run instructions for macOS, Windows and Linux.** How to get Node
+  on each, and how to keep Tinpost running after a reboot using only what the platform
+  already ships: a launchd agent on macOS, a scheduled task on Windows (with the
+  firewall rules you will need), and a systemd unit on Linux. None of it is required —
+  `npm start` in a terminal is still a perfectly good way to run a lab — and none of it
+  needs extra software. Sending examples now include PowerShell, which works on all
+  three, rather than only `swaks`.
+
 ## v0.4.1 — 23 September 2026
 
 - Changed: **the two sides of an SMTP conversation are told apart by tone.** What the
