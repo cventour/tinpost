@@ -4,6 +4,22 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.4.3 — 23 September 2026
+
+- New: **copy-paste run examples for macOS, Linux and Windows.** A "Running it"
+  section with the command lines you actually type — defaults, choosing ports, binding
+  `0.0.0.0`, naming a data directory — given twice, once for a Unix shell and once for
+  PowerShell, so neither platform has to translate the other's.
+
+- New: **which platforms need elevation for port 25, in a table.** Ports below 1024 are
+  reserved for root on macOS and Linux, so port 25 needs `sudo` there; **Windows does
+  not reserve low ports**, so an ordinary account binds 25 with no elevation at all.
+  The section also names the trap that follows `sudo`: the default data directory then
+  resolves against root's environment, so a `sudo` run and an ordinary run keep two
+  separate mail stores, each looking empty to the other — pass `--data-dir` and the
+  problem disappears. Port 25 was previously explained in a single paragraph under
+  Options; that now points at the fuller section rather than repeating it.
+
 ## v0.4.2 — 23 September 2026
 
 - Fixed: **the quick start told you to run a command that does not exist.** `npx

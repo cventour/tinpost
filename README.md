@@ -98,6 +98,91 @@ swaks --to alice@lab.local --from bob@corp.test --server 127.0.0.1:2525 --body "
 
 It appears in the open page within a second, without a reload.
 
+## Running it
+
+Every example assumes you are in the directory you cloned into. Stop it with
+`Ctrl+C`. If you installed globally with `npm install -g .`, write `tinpost serve`
+wherever these say `node src/cli.js serve`.
+
+### macOS and Linux
+
+```bash
+# Defaults: SMTP on 2525, web on 8025, loopback only
+npm start
+
+# The same thing, when you want to pass options
+node src/cli.js serve
+
+# Choose the ports
+node src/cli.js serve --smtp-port 2525 --http-port 8025
+
+# The standard SMTP port. Needs root on macOS and Linux — see below
+sudo node src/cli.js serve --smtp-port 25 --data-dir /usr/local/var/tinpost
+
+# Reachable from other machines on an isolated lab network
+node src/cli.js serve --host 0.0.0.0
+
+# Keep the mail somewhere of your choosing
+node src/cli.js serve --data-dir ~/labmail
+```
+
+### Windows (PowerShell)
+
+```powershell
+# Defaults: SMTP on 2525, web on 8025, loopback only
+npm start
+
+# The same thing, when you want to pass options
+node src\cli.js serve
+
+# Choose the ports
+node src\cli.js serve --smtp-port 2525 --http-port 8025
+
+# The standard SMTP port. No elevation needed on Windows — see below
+node src\cli.js serve --smtp-port 25
+
+# Reachable from other machines on an isolated lab network
+node src\cli.js serve --host 0.0.0.0
+
+# Keep the mail somewhere of your choosing
+node src\cli.js serve --data-dir C:\labmail
+```
+
+Exposing it with `--host 0.0.0.0` on Windows also needs a firewall rule — see
+[Keeping it running](#windows--task-scheduler).
+
+### Port 25 needs root — except on Windows
+
+Ports below 1024 are reserved for root on macOS and Linux. That is a rule of those
+systems, not a choice Tinpost makes, and it is why the default is 2525.
+
+| | Default port 2525 | Standard port 25 |
+|---|---|---|
+| macOS | ordinary user | **`sudo` required** |
+| Linux | ordinary user | **`sudo` required**, or grant `CAP_NET_BIND_SERVICE` |
+| Windows | ordinary user | ordinary user — Windows does not reserve low ports |
+
+Run as root with no port flag at all and Tinpost takes 25 by itself, because running
+as root is read as intent to be a real mail server:
+
+```bash
+sudo node src/cli.js serve --data-dir /usr/local/var/tinpost
+```
+
+Run as an ordinary user on macOS or Linux and it falls back to 2525 and says why, on
+the entry page and in the log. It never refuses to start over this.
+
+**Pass `--data-dir` whenever you use `sudo`.** Under `sudo` the default location
+resolves against root's environment rather than yours, so a sudo run and an ordinary
+run would otherwise keep two separate mail stores and each would look empty to the
+other. Anything written under `sudo` also belongs to root, so a later ordinary run
+cannot delete it — the admin page says so plainly if it happens, but naming the
+directory once avoids the whole business.
+
+On Linux there is a third way, and it is the one the reference deployment uses: leave
+the process unprivileged and grant the one capability it needs. See the systemd unit
+under [Keeping it running](#linux--systemd).
+
 ## Sending mail to it
 
 Point any client or library at `127.0.0.1:2525`. There is no TLS, because lab senders
@@ -424,25 +509,10 @@ command line overrides what is saved.
 
 ### Port 25
 
-Tinpost uses the standard SMTP port when it can, and says so when it cannot.
-
-- **Run as root** and it listens on **25** with no flag needed, because running as root
-  is taken as intent to be a real mail server:
-
-  ```bash
-  sudo tinpost serve
-  ```
-
-- **Run as an ordinary user** on macOS or Linux and port 25 is reserved by the system,
-  so it falls back to **2525** and carries a warning on the entry page and in the log
-  explaining why and how to change it. It never refuses to start over this.
-
-- **On Windows** low ports are not reserved, so it takes 25 without elevation. If 25 is
-  unavailable there it is because another program holds it, and the warning says that
-  instead.
-
-A port you choose yourself — by flag, or on the admin page — always wins over this, and
-is never warned about.
+A port you choose yourself — by flag, or on the admin page — always wins over the
+default and is never warned about. For which platforms need elevation to take port 25,
+and the `sudo` caveat that comes with it, see
+[Port 25 needs root](#port-25-needs-root--except-on-windows).
 
 ## Where the data goes
 
