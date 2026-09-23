@@ -28,7 +28,8 @@
   </div>
   <nav>
     <% if (locals.addr) { %>
-      <a class="nav-link" href="/compose">Compose</a>
+      <%# Compose lives on the inbox, beside the list it acts on. A second copy up
+          here was the same action twice on the same screen. %>
       <span class="who" title="The mailbox you are reading"><%= addr %></span>
       <a class="nav-link subtle" href="/?switch=1">Switch</a>
       <form method="post" action="/signout" class="inline"><button class="linkish">Sign out</button></form>

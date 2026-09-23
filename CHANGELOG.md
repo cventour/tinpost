@@ -4,6 +4,13 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.2 — 23 September 2026
+
+- Removed: **the duplicate Compose link in the top bar.** The inbox already carries a
+  Compose button beside the list it acts on, so the same action appeared twice on the
+  same screen. The button stays; the top bar drops back to the mailbox you are reading
+  and the controls that switch or leave it.
+
 ## v0.7.1 — 23 September 2026
 
 - Changed: **the Timeline's filter pills are on/off switches.** Each category —
