@@ -4,6 +4,25 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.1 — 23 September 2026
+
+- Changed: **the Timeline's filter pills are on/off switches.** Each category —
+  Delivered locally, Relayed to gateway, Returned by gateway, Relay failed, Refused,
+  Connections — can be shown or hidden on its own, and the chart follows, so hiding
+  Connections removes both their rows and their grey bars. **All** turns every one
+  back on. The categories no longer overlap: "Relay involved", which included
+  failures and returns, is replaced by "Relayed to gateway". Each pill carries its
+  colour from the chart.
+
+- Changed: **a relay failure and a refusal are told apart.** "Failed" used to hold
+  both the gateway saying no and Tinpost itself saying no. They are now two switches
+  and two colours, Relay failed (red) and Refused (amber), so everything that touched
+  the gateway is exactly Relayed + Returned + Relay failed.
+
+- Fixed: **the live "new events" count respects the switches and the search.** With
+  Connections hidden, the gateway's health checks no longer announce new events that
+  the view would not show.
+
 ## v0.7.0 — 23 September 2026
 
 - New: **a Timeline page.** Beside Admin in the top bar: every message and

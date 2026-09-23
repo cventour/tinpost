@@ -27,7 +27,7 @@
 
 <form method="get" action="/timeline" class="tl-custom" data-tl-custom <%- window.range === 'custom' ? '' : 'hidden' %>>
   <input type="hidden" name="range" value="custom">
-  <input type="hidden" name="filter" value="<%= filter %>">
+  <% if (showValue) { %><input type="hidden" name="show" value="<%= showValue %>"><% } %>
   <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
   <label><span>From <span class="dim">(UTC)</span></span>
     <input type="datetime-local" name="from" value="<%= window.fromInput %>" required>
@@ -73,10 +73,18 @@
 </section>
 
 <div class="tl-toolbar">
-  <nav class="tl-chips" aria-label="Filter events">
-    <% chips.forEach(function (c) { %>
-      <a href="<%= hrefFor({ filter: c.id === 'all' ? null : c.id, before: null }) %>" class="<%= c.on ? 'on' : '' %>" <%- c.on ? 'aria-current="true"' : '' %>>
-        <%= c.label %> <span class="n"><%= c.count %></span>
+  <%# Switches, not tabs: each shows or hides its own category, and All turns every
+      one back on. Links rather than buttons, so they work with JavaScript off; the
+      state is announced with aria-pressed on role=button. %>
+  <nav class="tl-chips" aria-label="Show or hide categories">
+    <a href="<%= allHref %>" role="button" aria-pressed="<%= allOn ? 'true' : 'false' %>" class="<%= allOn ? 'on' : '' %>">
+      All <span class="n"><%= allCount %></span>
+    </a>
+    <span class="tl-chips-sep" aria-hidden="true"></span>
+    <% toggles.forEach(function (c) { %>
+      <a href="<%= c.href %>" role="button" aria-pressed="<%= c.on ? 'true' : 'false' %>" class="<%= c.on ? 'on' : '' %>"
+         title="<%= c.on ? 'Hide' : 'Show' %> <%= c.label.toLowerCase() %>">
+        <i class="dot k-<%= c.id %>" aria-hidden="true"></i><%= c.label %> <span class="n"><%= c.count %></span>
       </a>
     <% }) %>
   </nav>
@@ -86,7 +94,7 @@
       <input type="hidden" name="from" value="<%= window.fromInput %>">
       <input type="hidden" name="to" value="<%= window.toInput %>">
     <% } %>
-    <% if (filter !== 'all') { %><input type="hidden" name="filter" value="<%= filter %>"><% } %>
+    <% if (showValue) { %><input type="hidden" name="show" value="<%= showValue %>"><% } %>
     <label class="sr-only" for="tl-q">Search the timeline</label>
     <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
     <input type="search" id="tl-q" name="q" value="<%= q %>" placeholder="Address, IP or response text">
@@ -131,10 +139,14 @@
       </tbody>
     </table>
   <% } else { %>
-    <p class="tl-empty">Nothing in this window<%= filter !== 'all' || q ? ' matches' : '' %>. Try a longer range<%= filter !== 'all' || q ? ' or clear the filter' : '' %>.</p>
+    <% if (noneOn) { %>
+      <p class="tl-empty">Every category is switched off. Press <a href="<%= allHref %>">All</a> to show them again.</p>
+    <% } else { %>
+      <p class="tl-empty">Nothing in this window<%= !allOn || q ? ' matches' : '' %>. Try a longer range<%= !allOn || q ? ', or switch more categories on' : '' %>.</p>
+    <% } %>
   <% } %>
   <div class="tl-foot">
-    <span>Showing <%= shown %> of <%= total %> event<%= total === 1 ? '' : 's' %> in this window</span>
+    <span>Showing <%= shownCount %> of <%= total %> event<%= total === 1 ? '' : 's' %> in this window</span>
     <span class="tl-pager">
       <% if (locals.newestHref) { %><a class="btn small ghost" href="<%= newestHref %>">Newest</a><% } %>
       <% if (olderHref) { %><a class="btn small ghost" href="<%= olderHref %>">Load older</a><% } %>
@@ -142,6 +154,6 @@
   </div>
 </section>
 
-<div data-tl-page data-live="<%= window.live && !locals.newestHref ? '1' : '0' %>"></div>
+<div data-tl-page data-live="<%= window.live && !locals.newestHref ? '1' : '0' %>" data-show="<%= liveShow %>" data-q="<%= q %>"></div>
 
 <%- include('partials/foot') %>

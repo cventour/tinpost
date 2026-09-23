@@ -1,4 +1,5 @@
 import { ADDR_COOKIE, setMailboxCookie } from './routes.mail.js';
+import { EVENT_CATEGORIES } from '../db.js';
 
 /**
  * The Timeline page: every message and every refused or empty connection the
@@ -17,14 +18,19 @@ export const RANGES = {
   '7d': 7 * 24 * 60 * 60 * 1000,
 };
 
-export const FILTERS = [
-  ['all', 'All'],
-  ['relay', 'Relay involved'],
-  ['failed', 'Failed'],
+/**
+ * The switchable categories, in the chart's order. They do not overlap, so switching
+ * one off removes exactly its rows and its colour from the chart.
+ */
+export const CATEGORIES = [
   ['delivered', 'Delivered locally'],
+  ['relayed', 'Relayed to gateway'],
   ['returned', 'Returned by gateway'],
-  ['connections', 'Connections'],
+  ['failed', 'Relay failed'],
+  ['refused', 'Refused'],
+  ['connection', 'Connections'],
 ];
+const ALL = CATEGORIES.map(([id]) => id);
 
 const BUCKETS = 30;
 const PAGE = 200;
@@ -47,12 +53,17 @@ const RELAY_LABEL = {
 
 const VIA_LABEL = { smtp: 'SMTP', webmail: 'Webmail', gateway: 'Gateway' };
 
-/** The chart's series. Refused mail is drawn with relay failures: both are mail that did not get through. */
+/**
+ * The chart's series: one per category. A relay failure (the gateway said no, or
+ * could not be reached) and a refusal (Tinpost itself said no) are kept apart, so
+ * "everything that touched the gateway" is a set of switches that means exactly that.
+ */
 const SERIES = [
   ['delivered', 'Delivered locally'],
   ['relayed', 'Relayed to gateway'],
   ['returned', 'Returned by gateway'],
-  ['failed', 'Failed or refused'],
+  ['failed', 'Relay failed'],
+  ['refused', 'Refused'],
   ['connection', 'Connections'],
 ];
 
@@ -62,7 +73,7 @@ export async function registerTimelineRoutes(app) {
   app.get('/timeline', async (req, reply) => {
     const query = req.query ?? {};
     const window = resolveRange(query);
-    const filter = FILTERS.some(([id]) => id === query.filter) ? query.filter : 'all';
+    const shown = parseShow(query.show);
     const q = String(query.q ?? '').slice(0, 200);
     const before = Number.parseInt(query.before, 10) || null;
 
@@ -70,14 +81,15 @@ export async function registerTimelineRoutes(app) {
     const to = window.to.toISOString();
     const span = window.to - window.from;
 
-    const rows = db.listEvents({ from, to, filter, q, before, limit: PAGE }).map((e) => eventRow(e, span));
-    const total = db.countEvents({ from, to, filter, q });
-    const chips = FILTERS.map(([id, label]) => ({
-      id,
-      label,
-      count: db.countEvents({ from, to, filter: id, q }),
-      on: id === filter,
-    }));
+    const show = shown.length === ALL.length ? null : shown;
+    const rows = db.listEvents({ from, to, show, q, before, limit: PAGE }).map((e) => eventRow(e, span));
+    const total = db.countEvents({ from, to, show, q });
+    // Each switch links to the set with it flipped, so the page works as plain links.
+    const toggles = CATEGORIES.map(([id, label]) => {
+      const on = shown.includes(id);
+      const next = on ? shown.filter((c) => c !== id) : ALL.filter((c) => c === id || shown.includes(c));
+      return { id, label, on, count: db.countEvents({ from, to, show: [id], q }), href: hrefFor(query, { show: showParam(next), before: null }) };
+    });
 
     return reply.view('timeline', {
       title: 'Timeline — Tinpost',
@@ -93,13 +105,19 @@ export async function registerTimelineRoutes(app) {
         ['7d', '7 days'],
         ['custom', 'Custom'],
       ],
-      chart: chartModel(db.eventMarks({ from, to, q }), window.from, window.to),
-      chips,
-      filter,
+      chart: chartModel(db.eventMarks({ from, to, show, q }), window.from, window.to),
+      toggles,
+      allOn: shown.length === ALL.length,
+      allHref: hrefFor(query, { show: null, before: null }),
+      allCount: db.countEvents({ from, to, q }),
+      noneOn: shown.length === 0,
+      showValue: showParam(shown),
+      // What the live counter should count: only what this view would show.
+      liveShow: shown.join(','),
       q,
       rows,
       total,
-      shown: rows.length,
+      shownCount: rows.length,
       olderHref: rows.length === PAGE ? hrefFor(query, { before: rows[rows.length - 1].id }) : null,
       newestHref: before ? hrefFor(query, { before: null }) : null,
       hrefFor: (changes) => hrefFor(query, changes),
@@ -155,7 +173,12 @@ export async function registerTimelineRoutes(app) {
     });
     reply.raw.write('retry: 3000\n\n');
 
-    const onEvent = (e) => reply.raw.write(`event: timeline\ndata: ${JSON.stringify({ id: e.id, kind: e.kind })}\n\n`);
+    // The fields the page's search reads, so an open page can count only the events
+    // it would actually show.
+    const onEvent = (e) => {
+      const text = [e.fromAddr, e.toAddrs, e.sourceIp, e.subject, e.response].filter(Boolean).join(' ');
+      reply.raw.write(`event: timeline\ndata: ${JSON.stringify({ id: e.id, kind: e.kind, text })}\n\n`);
+    };
     timeline.on('event', onEvent);
     const ping = setInterval(() => reply.raw.write(': ping\n\n'), 25000);
     const cleanup = () => {
@@ -218,12 +241,12 @@ export function chartModel(marks, from, to) {
   const size = (to - from) / BUCKETS;
   const buckets = Array.from({ length: BUCKETS }, (_, i) => ({
     start: new Date(from.getTime() + i * size),
-    counts: { delivered: 0, relayed: 0, returned: 0, failed: 0, connection: 0 },
+    counts: { delivered: 0, relayed: 0, returned: 0, failed: 0, refused: 0, connection: 0 },
   }));
-  const totals = { delivered: 0, relayed: 0, returned: 0, failed: 0, connection: 0 };
+  const totals = { delivered: 0, relayed: 0, returned: 0, failed: 0, refused: 0, connection: 0 };
 
   for (const mark of marks) {
-    const series = mark.kind === 'refused' ? 'failed' : mark.kind;
+    const series = mark.kind;
     if (!(series in totals)) continue;
     const index = Math.min(BUCKETS - 1, Math.max(0, Math.floor((new Date(mark.at) - from) / size)));
     buckets[index].counts[series] += 1;
@@ -247,7 +270,7 @@ export function chartModel(marks, from, to) {
     }),
     ticks: Array.from({ length: 7 }, (_, i) => fmtAxis(new Date(from.getTime() + (span * i) / 6), span)),
     legend: SERIES.map(([k, label]) => ({ kind: k, label, count: totals[k] })),
-    messages: totals.delivered + totals.relayed + totals.returned + totals.failed,
+    messages: totals.delivered + totals.relayed + totals.returned + totals.failed + totals.refused,
     connections: totals.connection,
   };
 }
@@ -292,11 +315,27 @@ function fmtDay(d) {
   return `${d.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]}`;
 }
 
+/**
+ * The categories switched on, from `?show=`. Absent means all of them; `none` means
+ * none, which is a real state — every switch turned off — not a mistake to correct.
+ */
+export function parseShow(value) {
+  if (value === undefined || value === null || value === '') return [...ALL];
+  if (value === 'none') return [];
+  const asked = String(value).split(',');
+  return ALL.filter((c) => asked.includes(c));
+}
+
+function showParam(list) {
+  if (list.length === ALL.length) return null;
+  return list.length ? list.join(',') : 'none';
+}
+
 /** This page's URL with some parameters changed, the rest kept. */
 function hrefFor(query, changes) {
   const params = new URLSearchParams();
   const merged = { ...query, ...changes };
-  for (const key of ['range', 'from', 'to', 'filter', 'q', 'before']) {
+  for (const key of ['range', 'from', 'to', 'show', 'q', 'before']) {
     const value = merged[key];
     if (value === null || value === undefined || value === '') continue;
     if ((key === 'from' || key === 'to') && merged.range !== 'custom') continue;

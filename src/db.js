@@ -487,17 +487,18 @@ export class Db {
    * The WHERE clause shared by the list, the counts and the chart, so the three can
    * never disagree about which events are in view.
    */
-  #eventWhere({ from, to, filter = 'all', q = '' }) {
+  #eventWhere({ from, to, show = null, q = '' }) {
     const clauses = ['at >= ?', 'at < ?'];
     const params = [from, to];
-    const byFilter = {
-      relay: 'relay IS NOT NULL',
-      failed: "kind IN ('failed', 'refused')",
-      delivered: "kind = 'delivered'",
-      returned: "kind = 'returned'",
-      connections: "kind = 'connection'",
-    };
-    if (byFilter[filter]) clauses.push(byFilter[filter]);
+    // `show` is the set of categories switched on; null means all of them.
+    if (Array.isArray(show)) {
+      const kinds = show.flatMap((c) => EVENT_CATEGORIES[c] ?? []);
+      if (!kinds.length) clauses.push('0');
+      else {
+        clauses.push(`kind IN (${kinds.map(() => '?').join(', ')})`);
+        params.push(...kinds);
+      }
+    }
     const term = String(q ?? '').trim().toLowerCase();
     if (term) {
       clauses.push(
@@ -509,22 +510,22 @@ export class Db {
   }
 
   /** Events in a window, newest first. `before` pages back by id. */
-  listEvents({ from, to, filter, q, before = null, limit = 200 }) {
-    const where = this.#eventWhere({ from, to, filter, q });
+  listEvents({ from, to, show, q, before = null, limit = 200 }) {
+    const where = this.#eventWhere({ from, to, show, q });
     const page = before ? ' AND id < ?' : '';
     return this.#db
       .prepare(`SELECT * FROM events WHERE ${where.sql}${page} ORDER BY at DESC, id DESC LIMIT ?`)
       .all(...where.params, ...(before ? [before] : []), limit);
   }
 
-  countEvents({ from, to, filter, q }) {
-    const where = this.#eventWhere({ from, to, filter, q });
+  countEvents({ from, to, show, q }) {
+    const where = this.#eventWhere({ from, to, show, q });
     return Number(this.#db.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where.sql}`).get(...where.params).n);
   }
 
   /** Time and kind of every event in the window: what the activity chart is drawn from. */
-  eventMarks({ from, to, q }) {
-    const where = this.#eventWhere({ from, to, filter: 'all', q });
+  eventMarks({ from, to, show, q }) {
+    const where = this.#eventWhere({ from, to, show, q });
     return this.#db.prepare(`SELECT at, kind FROM events WHERE ${where.sql}`).all(...where.params);
   }
 
@@ -548,6 +549,16 @@ export class Db {
     };
   }
 }
+
+/** The timeline's categories, each with the event kinds it covers. They do not overlap. */
+export const EVENT_CATEGORIES = {
+  delivered: ['delivered'],
+  relayed: ['relayed'],
+  returned: ['returned'],
+  failed: ['failed'],
+  refused: ['refused'],
+  connection: ['connection'],
+};
 
 export function normaliseAddress(address) {
   return String(address ?? '').trim().toLowerCase();

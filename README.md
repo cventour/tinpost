@@ -280,8 +280,13 @@ the like), and each connection that came and went without sending anything.
   remembers that per browser.
 - Pick the window: 15 minutes, 1 hour, 24 hours, 7 days, or **Custom** with a start
   and an end. Every time on the page is UTC.
-- Filter to relay traffic, failures, local deliveries, messages returned by the
-  gateway or bare connections, or search by address, IP, subject or response text.
+- The pills under the chart are on/off switches, one per category and colour:
+  Delivered locally, Relayed to gateway, Returned by gateway, Relay failed (the
+  gateway said no or could not be reached), Refused (Tinpost itself said no — `550`,
+  `552`, a scanner verdict) and Connections. Turn one off and its rows and its colour
+  on the chart disappear; **All** turns every one back on. Everything that touched
+  the gateway is Relayed + Returned + Relay failed. Search by address, IP, subject or
+  response text as well.
 - Each row gives the time to the millisecond, the source IP and whether it came in
   over SMTP, from the webmail or from the gateway, sender and recipients, the result,
   whether the relay was involved and which way, and the relay's exact reply.

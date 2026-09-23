@@ -33,6 +33,7 @@
   --k-relayed: #2b5fd9;
   --k-returned: #8fa9ea;
   --k-failed: #d05050;
+  --k-refused: #d9a23a;
   --k-connection: #cfd5dd;
   --row-hover: #f0f4fd;
   --radius: 8px;
@@ -64,6 +65,7 @@
     --k-relayed: #6c93f0;
     --k-returned: #3f5a9c;
     --k-failed: #c05a5a;
+    --k-refused: #b08a3a;
     --k-connection: #3a414b;
     --row-hover: #212835;
     color-scheme: dark;
@@ -92,6 +94,7 @@
   --k-relayed: #6c93f0;
   --k-returned: #3f5a9c;
   --k-failed: #c05a5a;
+  --k-refused: #b08a3a;
   --k-connection: #3a414b;
   --row-hover: #212835;
   color-scheme: dark;
@@ -762,6 +765,7 @@ main.full { max-width: 1480px; padding-left: 32px; padding-right: 32px; }
 .tl-bar i.k-relayed, .tl-legend i.k-relayed { background: var(--k-relayed); }
 .tl-bar i.k-returned, .tl-legend i.k-returned { background: var(--k-returned); }
 .tl-bar i.k-failed, .tl-legend i.k-failed { background: var(--k-failed); }
+.tl-bar i.k-refused, .tl-legend i.k-refused { background: var(--k-refused); }
 .tl-bar i.k-connection, .tl-legend i.k-connection { background: var(--k-connection); }
 
 .tl-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; }
@@ -771,6 +775,18 @@ main.full { max-width: 1480px; padding-left: 32px; padding-right: 32px; }
 .tl-chips a .n { font-size: 11.5px; padding: 0 6px; border-radius: 999px; background: var(--sunk); color: var(--ink-dim); }
 .tl-chips a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .tl-chips a.on .n { background: rgba(255, 255, 255, 0.22); color: var(--accent-ink); }
+.tl-chips { align-items: center; }
+.tl-chips-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.tl-chips a .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.tl-chips a .dot.k-delivered { background: var(--k-delivered); }
+.tl-chips a .dot.k-relayed { background: var(--k-relayed); }
+.tl-chips a .dot.k-returned { background: var(--k-returned); }
+.tl-chips a .dot.k-failed { background: var(--k-failed); }
+.tl-chips a .dot.k-refused { background: var(--k-refused); }
+.tl-chips a .dot.k-connection { background: var(--k-connection); }
+/* A switch that is on keeps its colour dot, ringed so it still reads on the blue. */
+.tl-chips a.on .dot { box-shadow: 0 0 0 1.5px var(--accent-ink); }
+.tl-chips a:not(.on) { color: var(--ink-dim); }
 .tl-search { display: flex; align-items: center; gap: 8px; width: 320px; flex: none; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink-dim); }
 .tl-search .ico { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; flex: none; }
 .tl-search input { border: 0; outline: 0; flex: 1; min-width: 0; padding: 8px 0; font: inherit; font-size: 13px; background: transparent; color: var(--ink); box-shadow: none; }
@@ -808,7 +824,8 @@ main.full { max-width: 1480px; padding-left: 32px; padding-right: 32px; }
 .tl-tag.k-delivered { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ink); }
 .tl-tag.k-relayed { background: color-mix(in srgb, var(--k-relayed) 12%, var(--panel)); border-color: color-mix(in srgb, var(--k-relayed) 35%, var(--panel)); color: var(--ink); }
 .tl-tag.k-returned { background: color-mix(in srgb, var(--k-returned) 18%, var(--panel)); border-color: color-mix(in srgb, var(--k-returned) 45%, var(--panel)); color: var(--ink); }
-.tl-tag.k-failed, .tl-tag.k-refused { background: var(--err-bg); border-color: var(--err-line); color: var(--ink); }
+.tl-tag.k-failed { background: var(--err-bg); border-color: var(--err-line); color: var(--ink); }
+.tl-tag.k-refused { background: var(--warn-bg); border-color: var(--warn-line); color: var(--ink); }
 
 .tl-empty { margin: 0; padding: 32px 16px; text-align: center; color: var(--ink-dim); }
 .tl-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }

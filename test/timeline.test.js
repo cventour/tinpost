@@ -6,7 +6,7 @@ import { makeLab } from './helpers.js';
 import { Db } from '../src/db.js';
 import { createSmtpServer } from '../src/smtp.js';
 import { createWebServer } from '../src/web/server.js';
-import { resolveRange, chartModel } from '../src/web/routes.timeline.js';
+import { resolveRange, chartModel, parseShow } from '../src/web/routes.timeline.js';
 
 const quiet = { info() {}, error() {}, debug() {} };
 const HOUR = { from: new Date(Date.now() - 3600e3).toISOString(), to: new Date(Date.now() + 1000).toISOString() };
@@ -126,7 +126,7 @@ test('SMTP refusals and empty connections are recorded; nothing is lost when a m
 
   const kinds = lab.db.listEvents(HOUR).map((e) => e.kind).sort();
   assert.deepEqual(kinds, ['connection', 'delivered', 'refused']);
-  const refused = lab.db.listEvents({ ...HOUR, filter: 'failed' })[0];
+  const refused = lab.db.listEvents({ ...HOUR, show: ['refused'] })[0];
   assert.match(refused.response, /^550 Relay denied for nowhere\.test/);
   assert.equal(refused.to_addrs, 'bob@nowhere.test');
   assert.equal(refused.source_ip, '127.0.0.1');
@@ -176,14 +176,14 @@ test('the Timeline page lists events, filters them, and links messages to their 
   assert.match(page.body, /Showing 2 of 2 events/);
   assert.match(page.body, /href="\/timeline"[^>]*aria-current="page"/);
 
-  const onlyConnections = await lab.app.inject({ method: 'GET', url: '/timeline?filter=connections' });
+  const onlyConnections = await lab.app.inject({ method: 'GET', url: '/timeline?show=connection' });
   assert.doesNotMatch(onlyConnections.body, /Quarterly numbers/);
   assert.match(onlyConnections.body, /Showing 1 of 1 event /);
 
   const searched = await lab.app.inject({ method: 'GET', url: '/timeline?q=quarterly' });
   assert.match(searched.body, /Showing 1 of 1 event /);
 
-  const [e] = lab.db.listEvents({ ...HOUR, filter: 'delivered' });
+  const [e] = lab.db.listEvents({ ...HOUR, show: ['delivered'] });
   const open = await lab.app.inject({ method: 'GET', url: `/timeline/open/${e.id}` });
   assert.equal(open.statusCode, 302);
   assert.equal(open.headers.location, `/mail/${e.message_id}?from=timeline`);
@@ -192,7 +192,7 @@ test('the Timeline page lists events, filters them, and links messages to their 
   const shown = await lab.app.inject({ method: 'GET', url: open.headers.location, headers: { cookie: 'mb_addr=bob@lab.local' } });
   assert.match(shown.body, /Opened from the timeline/);
 
-  const conn = lab.db.listEvents({ ...HOUR, filter: 'connections' })[0];
+  const conn = lab.db.listEvents({ ...HOUR, show: ['connection'] })[0];
   const nothing = await lab.app.inject({ method: 'GET', url: `/timeline/open/${conn.id}` });
   assert.equal(nothing.statusCode, 404);
 });
@@ -233,10 +233,38 @@ test('the chart buckets events by series across the window', () => {
     to,
   );
   assert.equal(chart.bars.length, 30);
-  assert.deepEqual(chart.bars[0].segs.map((s) => s.kind), ['delivered', 'failed']);
+  assert.deepEqual(chart.bars[0].segs.map((s) => s.kind), ['delivered', 'refused']);
   assert.deepEqual(chart.bars[29].segs.map((s) => s.kind), ['connection']);
   assert.equal(chart.messages, 2);
   assert.equal(chart.connections, 1);
   assert.equal(chart.ticks[0], '11:00');
   assert.equal(chart.ticks[6], '12:00');
+});
+
+test('the category pills are switches: each hides its own rows, All turns every one back on', async (t) => {
+  const lab = await webLab(t);
+  await lab.delivery.deliverComposed({ from: 'alice@lab.local', to: ['bob@lab.local'], subject: 'Kept', text: 'x' });
+  lab.timeline.record({ kind: 'refused', sourceIp: '10.0.0.9', fromAddr: 'x@corp.test', toAddrs: 'y@nowhere.test', response: '550 Relay denied for nowhere.test' });
+  lab.timeline.record({ kind: 'connection', sourceIp: '10.0.0.9' });
+
+  const all = await lab.app.inject({ method: 'GET', url: '/timeline' });
+  assert.match(all.body, /role="button" aria-pressed="true" class="on">\s*All/);
+  // Refused, switched on, links to every category but itself.
+  assert.match(all.body, /href="\/timeline\?show=delivered%2Crelayed%2Creturned%2Cfailed%2Cconnection" role="button" aria-pressed="true"/);
+
+  const noRefused = await lab.app.inject({ method: 'GET', url: '/timeline?show=delivered,relayed,returned,failed,connection' });
+  assert.doesNotMatch(noRefused.body, /Relay denied/);
+  assert.match(noRefused.body, /Kept/);
+  assert.match(noRefused.body, /role="button" aria-pressed="false" class="">\s*All/);
+  // Switching Refused back on restores the full set, which is the bare page.
+  assert.match(noRefused.body, /href="\/timeline" role="button" aria-pressed="false" class=""\s+title="Show refused"/);
+  // The live counter is told what this view shows.
+  assert.match(noRefused.body, /data-show="delivered,relayed,returned,failed,connection"/);
+
+  const none = await lab.app.inject({ method: 'GET', url: '/timeline?show=none' });
+  assert.match(none.body, /Every category is switched off/);
+
+  assert.deepEqual(parseShow(undefined), ['delivered', 'relayed', 'returned', 'failed', 'refused', 'connection']);
+  assert.deepEqual(parseShow('connection,failed,bogus'), ['failed', 'connection']);
+  assert.deepEqual(parseShow('none'), []);
 });

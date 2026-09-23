@@ -654,10 +654,18 @@
     var banner = document.querySelector('[data-tl-new]');
     var countEl = document.querySelector('[data-tl-new-count]');
     var fresh = 0;
+    // Count only what this view would show: the categories switched on, and the
+    // search, matched the way the server matches it.
+    var show = (page.getAttribute('data-show') || '').split(',');
+    var q = (page.getAttribute('data-q') || '').trim().toLowerCase();
     var es = new EventSource('/timeline/stream');
     es.addEventListener('open', function () { if (state) state.setAttribute('data-tl-live-state', 'live'); });
     es.addEventListener('error', function () { if (state) state.setAttribute('data-tl-live-state', 'down'); });
-    es.addEventListener('timeline', function () {
+    es.addEventListener('timeline', function (ev) {
+      var e;
+      try { e = JSON.parse(ev.data); } catch (err) { return; }
+      if (show.indexOf(e.kind) === -1) return;
+      if (q && String(e.text || '').toLowerCase().indexOf(q) === -1) return;
       fresh += 1;
       if (countEl) countEl.textContent = fresh + (fresh === 1 ? ' event' : ' events');
       if (banner) banner.hidden = false;

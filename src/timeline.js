@@ -25,8 +25,9 @@ export class Timeline extends EventEmitter {
    */
   record(event) {
     try {
-      const id = this.#db.insertEvent({ ...event, sourceIp: normaliseIp(event.sourceIp) });
-      this.emit('event', { id, kind: event.kind });
+      const stored = { ...event, sourceIp: normaliseIp(event.sourceIp) };
+      const id = this.#db.insertEvent(stored);
+      this.emit('event', { id, ...stored });
       return id;
     } catch {
       // The timeline is a record of mail, never a reason to lose it.
