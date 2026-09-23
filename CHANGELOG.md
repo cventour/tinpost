@@ -4,7 +4,11 @@ Every release, in plain language. Newest first.
 
 ---
 
-## Unreleased
+## v0.3.0 — 23 September 2026
+
+- New: **the version is shown beside the wordmark**, on every page, so it is obvious
+  at a glance which build a lab is running without opening a terminal. It comes from
+  `package.json`, which stays the one place a version is declared.
 
 - Changed: **the SMTP conversation switch is now a pill in the action bar**, beside
   Clear log, rather than a section with its own Save button at the foot of the page.

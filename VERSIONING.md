@@ -1,7 +1,9 @@
 # Versioning and releases
 
 Tinpost follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
-It is at **0.1.0** and stays in the `0.x` series until Christos says it is 1.0.
+It is in the `0.x` series and stays there until Christos says it is 1.0. The current
+version is whatever `package.json` says — it is not restated here, because a number
+written in two places is a number that goes stale in one of them.
 
 ## What each number means
 
