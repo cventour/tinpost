@@ -47,7 +47,7 @@ export async function start(flags = {}, { logger: baseLogger = console } = {}) {
   // The scanner reads its settings per message, so it is built unconditionally and
   // does nothing at all while ICAP scanning is switched off.
   const scanner = new Scanner({ db, logger });
-  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner });
+  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger });
 
   // An explicit --max-size is an instruction, so it seeds the stored setting that
   // the admin page edits. Without the flag, the stored setting stands.

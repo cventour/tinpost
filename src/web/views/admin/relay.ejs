@@ -1,0 +1,159 @@
+<%- include('../partials/admin-shell-open') %>
+
+<h1>Upstream relay</h1>
+<p class="lede">
+  Hand outbound mail to an upstream server &mdash; a security gateway such as OPSWAT
+  MetaDefender Email Security &mdash; which scans it and sends it back here for
+  delivery. Mail between two addresses in the same domain never leaves. If the
+  gateway cannot take a message, it is delivered here unscanned, with a footnote in
+  its body giving the error.
+</p>
+
+<form method="post" action="/admin/relay">
+  <h2>Upstream server</h2>
+
+  <div class="setting">
+    <div>
+      <label class="setting-label" for="f-relay_enabled"><%= specs.relay_enabled.label %></label>
+      <p class="setting-hint"><%= specs.relay_enabled.hint %></p>
+    </div>
+    <div class="setting-control">
+      <select id="f-relay_enabled" name="relay_enabled">
+        <option value="1" <%= values.relay_enabled === '1' ? 'selected' : '' %>>On</option>
+        <option value="0" <%= values.relay_enabled === '1' ? '' : 'selected' %>>Off</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-relay_host"><%= specs.relay_host.label %></label>
+      <p class="setting-hint"><%= specs.relay_host.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="text" id="f-relay_host" name="relay_host" spellcheck="false"
+             value="<%= values.relay_host %>" maxlength="<%= specs.relay_host.maxLength %>" required>
+    </div>
+  </div>
+
+  <% ['relay_port', 'relay_timeout'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <input type="number" id="f-<%= key %>" name="<%= key %>" value="<%= values[key] %>"
+               min="<%= spec.min %>" max="<%= spec.max %>" required inputmode="numeric">
+        <% if (spec.unit) { %><span class="unit"><%= spec.unit %></span><% } %>
+      </div>
+    </div>
+  <% }) %>
+
+  <h2>Authentication</h2>
+
+  <div class="setting">
+    <div>
+      <label class="setting-label" for="f-relay_auth"><%= specs.relay_auth.label %></label>
+      <p class="setting-hint"><%= specs.relay_auth.hint %></p>
+    </div>
+    <div class="setting-control">
+      <select id="f-relay_auth" name="relay_auth">
+        <option value="1" <%= values.relay_auth === '1' ? 'selected' : '' %>>On</option>
+        <option value="0" <%= values.relay_auth === '1' ? '' : 'selected' %>>Off</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-relay_user"><%= specs.relay_user.label %></label>
+      <p class="setting-hint"><%= specs.relay_user.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="text" id="f-relay_user" name="relay_user" spellcheck="false" autocomplete="off"
+             value="<%= values.relay_user %>" maxlength="<%= specs.relay_user.maxLength %>">
+    </div>
+  </div>
+
+  <div class="setting wide">
+    <div>
+      <label class="setting-label" for="f-relay_pass"><%= specs.relay_pass.label %></label>
+      <p class="setting-hint"><%= specs.relay_pass.hint %></p>
+    </div>
+    <div class="setting-control">
+      <input type="password" id="f-relay_pass" name="relay_pass" autocomplete="new-password"
+             maxlength="<%= specs.relay_pass.maxLength %>"
+             placeholder="<%= passwordSaved ? 'A password is saved' : 'No password saved' %>">
+    </div>
+  </div>
+
+  <h2>Routing</h2>
+
+  <% ['relay_local_domains', 'relay_return_hosts'].forEach(function (key) {
+       const spec = specs[key]; %>
+    <div class="setting wide">
+      <div>
+        <label class="setting-label" for="f-<%= key %>"><%= spec.label %></label>
+        <p class="setting-hint"><%= spec.hint %></p>
+      </div>
+      <div class="setting-control">
+        <textarea id="f-<%= key %>" name="<%= key %>" rows="3" spellcheck="false"
+                  placeholder="<%= key === 'relay_local_domains' ? 'lab.local, corp.test' : relayAddress.replace(/:\d+$/, '') %>"
+                  maxlength="<%= spec.maxLength %>"><%= values[key] %></textarea>
+      </div>
+    </div>
+  <% }) %>
+
+  <div class="actions">
+    <button type="submit" class="btn">Save settings</button>
+    <span class="save-note">Applied to the next message.</span>
+  </div>
+</form>
+
+<h2>Connection</h2>
+<p class="hint">
+  The relay is configured as <code><%= relayAddress %></code>, over plain SMTP with no TLS.
+  The test connects, greets the server and logs in if authentication is on. It does
+  not send any mail.
+</p>
+<form method="post" action="/admin/relay/test">
+  <button type="submit" class="btn small">Test the connection</button>
+</form>
+
+<h2>How mail is routed</h2>
+<table class="kv">
+  <tr>
+    <th>From a local domain to the same domain</th>
+    <td>Delivered here directly. Attachment scanning applies as set on the Scanning page.</td>
+  </tr>
+  <tr>
+    <th>From a local domain to any other domain</th>
+    <td>Handed to the upstream server. The sender's copy is marked &ldquo;relayed, awaiting
+      scan&rdquo;; the recipients receive it when the gateway sends it back. Attachment
+      scanning here is skipped, since the gateway does it.</td>
+  </tr>
+  <tr>
+    <th>Sent back by the gateway</th>
+    <td>Delivered to the recipients it was relayed for, and never relayed again. It is
+      recognised by the address it connects from:
+      <%= returnHosts.map(function (h) { return h; }).join(', ') %>.</td>
+  </tr>
+  <tr>
+    <th>Gateway unreachable or refuses it</th>
+    <td>Delivered here without scanning, with a footnote in the body giving the error.</td>
+  </tr>
+  <tr>
+    <th>From any other domain</th>
+    <td>Inbound mail. Delivered here directly, as before.</td>
+  </tr>
+</table>
+
+<% if (!relayEnabled) { %>
+  <p class="hint">None of this is in force while the relay is off: nothing leaves this machine.</p>
+<% } else if (!localDomains.length) { %>
+  <p class="hint">No local domains are listed, so nothing is relayed yet.</p>
+<% } %>
+
+<%- include('../partials/admin-shell-close') %>

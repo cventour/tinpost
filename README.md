@@ -5,9 +5,11 @@ for any domain you point at it, and shows every mailbox in a webmail UI that any
 can open by typing an address. You can reply and compose from the UI, and those
 messages are delivered back into the same instance.
 
-Nothing ever leaves the machine. There is no outbound relay, no DNS lookup and no
-network call of any kind — which is the point: it lets you rehearse realistic email
-conversations in an isolated environment.
+Nothing leaves the machine unless you tell it to. Out of the box there is no outbound
+relay, no DNS lookup and no network call of any kind — which is the point: it lets you
+rehearse realistic email conversations in an isolated environment. The one exception
+is opt-in: an [upstream relay](#upstream-relay) that hands outbound mail to a security
+gateway for scanning and takes it back once scanned.
 
 ## What it is for
 
@@ -280,6 +282,8 @@ From there you can:
   realistic failure. The compose form honours the same rule.
 - Point Tinpost at an **ICAP server** and have every attachment scanned before a
   message is accepted &mdash; see below.
+- Send outbound mail through an **upstream relay**, such as an email security
+  gateway, and take it back once scanned &mdash; see below.
 - See every mailbox with its message counts, open one, or delete its mail.
 - See how much disk the stored files use, reclaim space, or purge everything to reset
   the lab between runs.
@@ -486,6 +490,42 @@ scan, or to follow the global default, and a message is scanned when either side
 for it — the sender's domain or any recipient's — so one entry covers a domain's mail
 in both directions.
 
+## Upstream relay
+
+**Admin ▸ Upstream relay** hands outbound mail to another SMTP server — in practice a
+security gateway such as OPSWAT MetaDefender Email Security — which scans it and sends
+it back to Tinpost's SMTP port for delivery. Give it the gateway's host and port,
+optionally a username and password, and the list of **local domains**. It speaks plain
+SMTP; there is no TLS.
+
+How each message is routed:
+
+| Message | What happens |
+|---|---|
+| From a local domain to the **same** domain | Delivered directly. Never leaves. ICAP scanning applies as usual. |
+| From a local domain to **any other** domain | Handed to the gateway. The sender's copy is marked *relayed, awaiting scan*; the recipients get it when the gateway sends it back. Tinpost's own ICAP scan is skipped. |
+| Sent back by the gateway | Delivered to the recipients it was relayed for, and never relayed again. |
+| Gateway unreachable, or it refuses the message | Delivered locally **without scanning**, with a footnote in the body giving the error, SMTP reply included. |
+| From any other domain | Inbound. Delivered directly, as before. |
+
+A message addressed to both kinds of recipient is split: colleagues in the sender's
+domain get it straight away, and everyone else gets it through the gateway.
+
+Tinpost recognises the gateway's returned mail by the address it connects from, not by
+anything in the message, because a sender cannot forge its source address. Under
+**Gateway return addresses**, list the IP addresses or host names the gateway sends
+from; leave the field empty if that is the same address it listens on. Every message
+handed to the gateway is stamped with an `X-Tinpost-Relayed` header. If one comes back
+from an address that is not listed, Tinpost refuses it with `554` as a mail loop and
+logs which setting to fix, rather than relaying it forever.
+
+There is no queue. A message the gateway cannot take is delivered, not retried, so
+"Test the connection" is worth pressing before a session: it connects, greets and logs
+in, and sends nothing. Relay activity is under the **Relay** channel on the Logs page.
+
+Mail on its way out is accepted even under the allowlist policy, since the allowlist
+is about which domains Tinpost hosts, and outbound recipients are not hosted here.
+
 ## Options
 
 ```
@@ -559,6 +599,9 @@ Within that model, the reader is protected from the mail:
 - Sender-chosen text sent to an ICAP server (attachment names, addresses, subject)
   is stripped of line breaks and quotes, so a hostile message cannot forge a
   protocol header
+- The upstream relay password is stored in the Tinpost database as typed and is
+  never shown on the page again. The relay uses plain SMTP, so it and every relayed
+  message cross the network unencrypted — keep the gateway on the lab network
 
 Do not put real credentials or real personal data into it, and do not expose it to an
 untrusted network.

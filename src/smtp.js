@@ -2,6 +2,8 @@ import { format } from 'node:util';
 import { SMTPServer } from 'smtp-server';
 import { MaxSizeExceeded } from './blobstore.js';
 import { ScanRejected } from './scan.js';
+import { RelayLoop } from './delivery.js';
+import { relayConfig, isFromGateway, isLocalSender } from './relay.js';
 import { domainOf } from './db.js';
 import { readAllEffective } from './settings.js';
 
@@ -60,7 +62,18 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       // failed to send anything left no trace whatsoever unless the full transcript
       // was switched on.
       logger.info?.(`smtp: connection from ${session.remoteAddress || 'unknown'}`);
-      return callback();
+
+      // Settled once per connection: mail from the upstream gateway is its scanned
+      // output coming back, and is delivered rather than relayed again.
+      isFromGateway(relayConfig(db), session.remoteAddress)
+        .then((yes) => {
+          session.mbFromGateway = yes;
+          if (yes) logger.info?.(`smtp: ${session.remoteAddress} is the upstream gateway; its mail is delivered, not relayed`);
+        })
+        .catch(() => {
+          session.mbFromGateway = false;
+        })
+        .finally(() => callback());
     },
 
     /**
@@ -78,6 +91,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
 
     onMailFrom(address, session, callback) {
       session.mbRecipientCount = 0;
+      session.mbMailFrom = address.address;
       return callback();
     },
 
@@ -96,6 +110,12 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
 
       const domain = domainOf(address.address);
       if (db.isDomainAccepted(domain)) return callback();
+
+      // Mail on its way out, or coming back from the gateway, is addressed to domains
+      // that are not ours to host — that is the point of it — so the accept policy,
+      // which is about what this server hosts, does not apply to it.
+      const relay = relayConfig(db);
+      if (session.mbFromGateway || isLocalSender(relay, session.mbMailFrom)) return callback();
 
       // Same refusal a real MTA gives for a domain it does not handle, so clients
       // under test see a realistic failure rather than a silent drop.
@@ -161,7 +181,9 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
             rawHash: hash,
             size,
             envelopeRecipients: session.envelope.rcptTo.map((r) => r.address),
+            envelopeFrom: session.envelope.mailFrom?.address || null,
             origin: 'smtp',
+            fromGateway: !!session.mbFromGateway,
           });
           logger.info?.(
             `smtp: accepted #${summary.id} from ${summary.from} -> ${summary.addresses.join(', ')}`,
@@ -184,6 +206,13 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
             logger.info?.(
               `smtp: refused a message from ${session.envelope?.mailFrom?.address ?? 'unknown'} (${err.message})`,
             );
+            session.mbOutcomeLogged = true;
+            return callback(e);
+          }
+
+          if (err instanceof RelayLoop) {
+            const e = new Error(err.message);
+            e.responseCode = 554;
             session.mbOutcomeLogged = true;
             return callback(e);
           }

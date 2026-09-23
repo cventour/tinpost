@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import { normaliseAddress, domainOf } from '../db.js';
 import { htmlToText } from '../parse.js';
 import { ScanRejected } from '../scan.js';
+import { relayConfig, isLocalSender } from '../relay.js';
 
 const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -358,7 +359,10 @@ export async function registerMailRoutes(app) {
 
     // The same policy the SMTP listener enforces, so the UI cannot be used to
     // sidestep the domain rules the admin set.
-    const blocked = [...to, ...cc].filter((a) => !db.isDomainAccepted(domainOf(a)));
+    // Outbound mail from a local domain is the gateway's to deliver, so the policy
+    // about which domains this server hosts does not apply to it.
+    const outbound = isLocalSender(relayConfig(db), addr);
+    const blocked = outbound ? [] : [...to, ...cc].filter((a) => !db.isDomainAccepted(domainOf(a)));
     if (blocked.length) {
       return renderComposeError(
         reply,

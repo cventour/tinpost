@@ -171,8 +171,85 @@ export const ICAP_SETTINGS = {
   },
 };
 
+/**
+ * The upstream relay: a smart host that outbound mail is handed to — in practice a
+ * security gateway such as OPSWAT MetaDefender Email Security — which scans it and
+ * sends it back to Tinpost for delivery.
+ *
+ * "Outbound" is defined by the local domains below: mail from one of them to any
+ * other domain goes through the gateway, and mail that stays inside one domain never
+ * does.
+ */
+export const RELAY_SETTINGS = {
+  relay_enabled: {
+    label: 'Relay outbound mail through an upstream server',
+    hint: 'While this is off, nothing leaves the machine and every message is delivered straight into its mailbox, exactly as before.',
+    type: 'bool',
+    default: 0,
+  },
+  relay_host: {
+    label: 'Upstream server address',
+    hint: 'The host name or IP address of the gateway that outbound mail is handed to.',
+    type: 'host',
+    default: '127.0.0.1',
+    maxLength: 253,
+  },
+  relay_port: {
+    label: 'Upstream port',
+    hint: 'Plain SMTP, with no TLS. Port 25 is the usual one for server-to-server mail.',
+    type: 'port',
+    default: 25,
+    min: 1,
+    max: 65535,
+  },
+  relay_auth: {
+    label: 'Authenticate to the upstream server',
+    hint: 'Log in with the username and password below before sending. Leave off if the gateway accepts mail from this machine by its address.',
+    type: 'bool',
+    default: 0,
+  },
+  relay_user: {
+    label: 'Username',
+    hint: 'Only used when authentication is on.',
+    type: 'line',
+    default: '',
+    maxLength: 256,
+  },
+  relay_pass: {
+    label: 'Password',
+    hint: 'Stored in the Tinpost database as typed, and never shown again. Leave the field empty to keep the one already saved.',
+    type: 'secret',
+    default: '',
+    maxLength: 512,
+  },
+  relay_timeout: {
+    label: 'Upstream timeout',
+    hint: 'How long to wait for the gateway to connect or answer before treating the relay as failed and delivering locally.',
+    unit: 'seconds',
+    type: 'int',
+    scale: 1000,
+    default: 30,
+    min: 1,
+    max: 300,
+  },
+  relay_local_domains: {
+    label: 'Local domains',
+    hint: 'Mail from one of these domains to a different domain is relayed. Mail between two addresses in the same domain is delivered directly and never leaves. Mail from any other domain is treated as inbound and delivered directly.',
+    type: 'domains',
+    default: '',
+    maxLength: 4000,
+  },
+  relay_return_hosts: {
+    label: 'Gateway return addresses',
+    hint: 'The IP addresses or host names the gateway sends scanned mail back from. Mail arriving from one of them is delivered, never relayed again. Leave empty to use the upstream server address.',
+    type: 'hosts',
+    default: '',
+    maxLength: 4000,
+  },
+};
+
 /** Every setting, whichever page edits it. */
-export const SETTINGS = { ...SMTP_SETTINGS, ...ICAP_SETTINGS };
+export const SETTINGS = { ...SMTP_SETTINGS, ...ICAP_SETTINGS, ...RELAY_SETTINGS };
 
 /**
  * Read one setting in its stored form: bytes and milliseconds where the spec says
@@ -213,6 +290,8 @@ export function readDisplayValue(db, key) {
   const spec = SETTINGS[key];
   const stored = readSetting(db, key);
   if (spec.type === 'bool') return stored ? '1' : '0';
+  // A password is written, never read back into a form.
+  if (spec.type === 'secret') return '';
   return spec.scale ? Math.round(stored / spec.scale) : stored;
 }
 
@@ -265,6 +344,26 @@ export function validateSetting(key, input) {
     return { ok: true, value: raw };
   }
 
+  if (spec.type === 'domains' || spec.type === 'hosts') {
+    if (raw.length > spec.maxLength) return { ok: false, error: `${spec.label} is too long.` };
+    const items = splitList(raw);
+    const pattern = spec.type === 'domains' ? /^[a-z0-9-]+(\.[a-z0-9-]+)+$/ : /^[a-z0-9._:\[\]-]+$/;
+    const bad = items.filter((item) => !pattern.test(item));
+    if (bad.length) {
+      return {
+        ok: false,
+        error: `${spec.label}: "${bad[0]}" is not a valid ${spec.type === 'domains' ? 'domain' : 'host name or IP address'}.`,
+      };
+    }
+    return { ok: true, value: [...new Set(items)].join(', ') };
+  }
+
+  if (spec.type === 'secret') {
+    if (raw.length > spec.maxLength) return { ok: false, error: `${spec.label} is too long.` };
+    if (/[\r\n\x00]/.test(raw)) return { ok: false, error: `${spec.label} cannot contain line breaks.` };
+    return { ok: true, value: raw };
+  }
+
   if (spec.type === 'service') {
     if (!raw) return { ok: false, error: `${spec.label} cannot be empty.` };
     if (raw.length > spec.maxLength) return { ok: false, error: `${spec.label} is too long.` };
@@ -310,6 +409,17 @@ export function validateSetting(key, input) {
     return { ok: false, error: `${spec.label} cannot contain line breaks or control characters.` };
   }
   return { ok: true, value: raw };
+}
+
+/**
+ * A comma, space or newline separated list, lower-cased and trimmed. How the list
+ * settings are typed on the admin page and how they are read back.
+ */
+export function splitList(value) {
+  return String(value ?? '')
+    .split(/[\s,;]+/)
+    .map((item) => item.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
 }
 
 /** The settings that only take effect at the next start. */

@@ -3,6 +3,14 @@ import { Readable } from 'node:stream';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import { parseMessage, threadKeyFor, htmlToText } from './parse.js';
 import { normaliseAddress, domainOf } from './db.js';
+import {
+  relayConfig,
+  relayAddress,
+  planRoute,
+  relayMessage,
+  hasBeenRelayed,
+  withRelayFootnote,
+} from './relay.js';
 
 /**
  * The single write path for every message in the system.
@@ -17,9 +25,11 @@ export class Delivery extends EventEmitter {
   #blobs;
   #maxSize;
   #scanner;
+  #logger;
 
-  constructor({ db, blobs, maxSize, scanner = null }) {
+  constructor({ db, blobs, maxSize, scanner = null, logger = console }) {
     super();
+    this.#logger = logger;
     this.#db = db;
     this.#blobs = blobs;
     this.#maxSize = maxSize;
@@ -33,18 +43,22 @@ export class Delivery extends EventEmitter {
    * Store an already-persisted raw message (the SMTP path: the stream has been
    * written to the blob store as it arrived, so only the hash is passed in).
    *
-   * @param {{ rawHash: string, size: number, envelopeRecipients?: string[], origin?: string }} input
+   * `fromGateway` marks a message the upstream gateway sent back after scanning it,
+   * which is delivered and never relayed again.
+   *
+   * @param {{ rawHash: string, size: number, envelopeRecipients?: string[], envelopeFrom?: string|null,
+   *           origin?: string, fromGateway?: boolean }} input
    */
-  async deliverStored({ rawHash, size, envelopeRecipients = [], origin = 'smtp' }) {
+  async deliverStored({ rawHash, size, envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false }) {
     const raw = await this.#blobs.read(rawHash);
-    return this.#persist({ raw, rawHash, size, envelopeRecipients, origin });
+    return this.#persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom, origin, fromGateway });
   }
 
   /** Store a raw buffer we already hold (tests, imports). */
-  async deliverRaw(raw, { envelopeRecipients = [], origin = 'smtp' } = {}) {
+  async deliverRaw(raw, { envelopeRecipients = [], envelopeFrom = null, origin = 'smtp', fromGateway = false } = {}) {
     const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
     const { hash, size } = await this.#blobs.put(Readable.from([buf]), { maxSize: this.#maxSize });
-    return this.#persist({ raw: buf, rawHash: hash, size, envelopeRecipients, origin });
+    return this.#persist({ raw: buf, rawHash: hash, size, envelopeRecipients, envelopeFrom, origin, fromGateway });
   }
 
   /**
@@ -89,17 +103,44 @@ export class Delivery extends EventEmitter {
 
     return this.deliverRaw(raw, {
       envelopeRecipients: [...(draft.to ?? []), ...(draft.cc ?? [])],
+      envelopeFrom: draft.from,
       origin: 'webmail',
     });
   }
 
-  async #persist({ raw, rawHash, size, envelopeRecipients, origin }) {
+  async #persist({ raw, rawHash, size, envelopeRecipients, envelopeFrom = null, origin, fromGateway = false }) {
     const parsed = await parseMessage(raw);
 
     // Envelope recipients (RCPT TO) are authoritative for where mail lands — that is
     // how bcc works, and how a message addressed to one header but sent to another
     // still reaches the right mailbox.
     const recipients = mergeRecipients(parsed.recipients, envelopeRecipients);
+    const relay = relayConfig(this.#db);
+    // MAIL FROM decides where mail is going, as it would for any MTA; the header is
+    // the fallback for the webmail, whose envelope sender is the header sender.
+    const from = normaliseAddress(envelopeFrom) || parsed.fromAddr;
+
+    // The gateway handing back what it scanned. It was relayed from here once and is
+    // not relayed again; it is scanned by the gateway rather than by ICAP; and only
+    // the addresses it was sent back for receive it — the sender and anyone in their
+    // own domain already have their copy.
+    if (relay.enabled && fromGateway) {
+      const envelope = new Set(envelopeRecipients.map(normaliseAddress).filter(Boolean));
+      if (envelope.size) for (const r of recipients) r.delivered = envelope.has(r.address);
+      this.#logger.info?.(`relay: ${relay.host} returned a message from ${from || 'unknown'} for ${[...envelope].join(', ')}`);
+      return this.#store({
+        parsed,
+        rawHash,
+        size,
+        recipients,
+        origin,
+        senderCopy: false,
+        relayStatus: 'returned',
+        relayDetail: `Returned by the upstream gateway after scanning`,
+      });
+    }
+
+    const route = planRoute(relay, { from, recipients: recipients.map((r) => r.address) });
 
     // Nothing is written to the index until the scanner has approved the message, so
     // a rejected one never appears in a mailbox. Its raw blob is already on disk —
@@ -108,16 +149,75 @@ export class Delivery extends EventEmitter {
     //
     // Scanning happens after parsing because that is where the attachments are, and
     // before the insert because a message that is not approved is not delivered.
-    if (this.#scanner) {
+    //
+    // Mail for the gateway is the gateway's to scan, so only the recipients delivered
+    // here are put to ICAP — and with none of them, nothing is.
+    if (this.#scanner && route.local.length) {
       await this.#scanner.check({
         attachments: parsed.attachments,
         from: parsed.fromAddr,
-        recipients: recipients.map((r) => r.address),
+        recipients: route.local,
         origin,
         subject: parsed.subject,
       });
     }
 
+    if (!route.relay.length) return this.#store({ parsed, rawHash, size, recipients, origin });
+
+    // A message stamped by a Tinpost relay that did not come back from the gateway is
+    // going round in a circle: the gateway sent it back from an address that is not
+    // listed as its return address. Refused, as any MTA refuses a loop, rather than
+    // relayed forever or delivered without the scan it was meant to have.
+    if (hasBeenRelayed(parsed.headerLines)) {
+      this.#logger.error?.(
+        `relay: refused a message from ${from} that has already been relayed once — add the address the gateway sends back from to the gateway return addresses`,
+      );
+      throw new RelayLoop('Mail loop detected: this message has already been relayed by Tinpost');
+    }
+
+    const where = relayAddress(relay);
+    const result = await relayMessage(relay, { from, to: route.relay, raw });
+    const accepted = new Set(result.accepted.map(normaliseAddress));
+
+    if (result.ok) {
+      // Listed on the sender's copy, but not delivered: their copy is the one the
+      // gateway sends back.
+      for (const r of recipients) if (accepted.has(r.address)) r.delivered = false;
+      this.#logger.info?.(`relay: sent a message from ${from} to ${where} for ${route.relay.join(', ')} (${result.response})`);
+      return this.#store({
+        parsed,
+        rawHash,
+        size,
+        recipients,
+        origin,
+        relayStatus: 'relayed',
+        relayDetail: `Handed to ${where} for ${route.relay.join(', ')}: ${result.response}`,
+      });
+    }
+
+    // The gateway would not take it, or not for everyone. There is no queue, so the
+    // recipients it refused get the message here, unscanned, with the reason in its
+    // body; any it did accept still get theirs when it comes back.
+    const failed = route.relay.filter((a) => !accepted.has(normaliseAddress(a)));
+    for (const r of recipients) if (accepted.has(r.address)) r.delivered = false;
+    this.#logger.error?.(
+      `relay: could not relay a message from ${from} to ${where} for ${failed.join(', ')} (${result.error}); delivering it locally without scanning`,
+    );
+
+    const annotated = await withRelayFootnote(parsed, { where, recipients: failed, error: result.error });
+    const stored = await this.#blobs.put(Readable.from([annotated]));
+    return this.#store({
+      parsed: await parseMessage(annotated),
+      rawHash: stored.hash,
+      size: stored.size,
+      recipients,
+      origin,
+      relayStatus: 'failed',
+      relayDetail: `Could not relay to ${where} for ${failed.join(', ')}: ${result.error}`,
+    });
+  }
+
+  async #store({ parsed, rawHash, size, recipients, origin, senderCopy = true, relayStatus = null, relayDetail = null }) {
     let htmlHash = null;
     if (parsed.html) {
       const r = await this.#blobs.put(Readable.from([Buffer.from(parsed.html, 'utf8')]));
@@ -156,22 +256,39 @@ export class Delivery extends EventEmitter {
         threadKey: threadKeyFor(parsed.subject),
         sizeBytes: size,
         origin,
+        senderCopy,
+        relayStatus,
+        relayDetail,
       },
       recipients,
       storedAttachments,
     );
 
+    // Only the mailboxes that can actually see this row: a recipient still waiting on
+    // the gateway is not told about a copy they cannot open.
+    const visible = recipients.filter((r) => r.delivered !== false).map((r) => r.address);
+    if (senderCopy && parsed.fromAddr) visible.push(parsed.fromAddr);
+
     const summary = {
       id,
       from: parsed.fromAddr,
       subject: parsed.subject,
-      addresses: [...new Set([...recipients.map((r) => r.address), parsed.fromAddr].filter(Boolean))],
+      addresses: [...new Set(visible.filter(Boolean))],
+      relayStatus,
     };
 
     // Drives the live inbox: the web layer forwards these over SSE to whoever is
     // looking at one of the affected mailboxes.
     this.emit('message', summary);
     return summary;
+  }
+}
+
+/** Refused because the message has already been through a Tinpost relay once. */
+export class RelayLoop extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'RelayLoop';
   }
 }
 

@@ -31,6 +31,7 @@ export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 export const LOG_CHANNELS = [
   ['smtp', 'SMTP'],
   ['icap', 'Scanning'],
+  ['relay', 'Relay'],
   ['admin', 'Admin'],
   ['web', 'Web'],
   ['app', 'Other'],

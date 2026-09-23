@@ -14,6 +14,7 @@
 
   <dl class="headers">
     <dt>From</dt><dd><%= m.from_name ? m.from_name + ' <' + m.from_addr + '>' : m.from_addr %></dd>
+    <% const viaGateway = recipients.filter(function(r){return r.delivered === 0}).map(function(r){return r.address}) %>
     <dt>To</dt><dd><%= recipients.filter(function(r){return r.kind==='to'}).map(function(r){return r.address}).join(', ') || '(undisclosed)' %></dd>
     <% const ccs = recipients.filter(function(r){return r.kind==='cc'}) %>
     <% if (ccs.length) { %><dt>Cc</dt><dd><%= ccs.map(function(r){return r.address}).join(', ') %></dd><% } %>
@@ -21,6 +22,15 @@
     <% if (bccs.length) { %><dt>Bcc</dt><dd class="dim"><%= bccs.map(function(r){return r.address}).join(', ') %> <span class="tag">envelope only</span></dd><% } %>
     <dt>Date</dt><dd><%= new Date(m.date_utc).toLocaleString() %></dd>
     <dt>Size</dt><dd><%= fmtBytes(m.size_bytes) %> <span class="tag"><%= m.origin === 'webmail' ? 'sent from webmail' : 'received over SMTP' %></span></dd>
+    <% if (m.relay_status === 'relayed') { %>
+      <dt>Relay</dt><dd><span class="tag">relayed, awaiting scan</span>
+        <%= viaGateway.join(', ') %> will receive it once the upstream gateway has scanned it and sent it back.
+        <span class="dim"><%= m.relay_detail %></span></dd>
+    <% } else if (m.relay_status === 'failed') { %>
+      <dt>Relay</dt><dd><span class="tag">relay failed, delivered unscanned</span> <%= m.relay_detail %></dd>
+    <% } else if (m.relay_status === 'returned') { %>
+      <dt>Relay</dt><dd><span class="tag">scanned by the upstream gateway</span></dd>
+    <% } %>
   </dl>
 
   <% if (attachments.length) { %>

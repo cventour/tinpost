@@ -2,6 +2,7 @@ import { normaliseDomain } from '../db.js';
 import {
   SMTP_SETTINGS,
   ICAP_SETTINGS,
+  RELAY_SETTINGS,
   SETTINGS,
   readAllDisplay,
   saveSettings,
@@ -9,6 +10,7 @@ import {
   checkPortAvailable,
 } from '../settings.js';
 import { testConnection, icapConfig, icapAddress } from '../scan.js';
+import { relayConfig, relayAddress, testRelay } from '../relay.js';
 import { LOG_CHANNELS, LOG_LEVELS, formatLine } from '../logbuf.js';
 import { protocolLoggingOn } from '../smtp.js';
 import {
@@ -275,6 +277,67 @@ export async function registerAdminRoutes(app) {
       inherit: `${domain} now follows the default, which is ${icapConfig(db).scanByDefault ? 'to scan' : 'not to scan'}.`,
     };
     return reply.view('admin/icap', await icapModel({ notice: wording[choice] }));
+  });
+
+  // ---------- upstream relay ----------
+
+  app.get('/admin/relay', async (req, reply) => {
+    return reply.view('admin/relay', await relayModel());
+  });
+
+  async function relayModel(extra = {}) {
+    const config = relayConfig(db);
+    return shell('relay', {
+      title: 'Upstream relay — Tinpost admin',
+      specs: RELAY_SETTINGS,
+      values: readAllDisplay(db),
+      relayAddress: relayAddress(config),
+      relayEnabled: config.enabled,
+      localDomains: config.localDomains,
+      returnHosts: config.returnHosts,
+      passwordSaved: !!config.pass,
+      ...extra,
+    });
+  }
+
+  app.post('/admin/relay', async (req, reply) => {
+    const body = { ...(req.body ?? {}) };
+    // An empty password field keeps the saved one: the form never shows it, so
+    // every save would otherwise wipe it.
+    if (!String(body.relay_pass ?? '')) delete body.relay_pass;
+
+    const rerender = async (error) => {
+      const values = { ...readAllDisplay(db), ...pickSubmitted(body), relay_pass: '' };
+      return reply.code(400).view('admin/relay', await relayModel({ error, values }));
+    };
+
+    const on = (key) => ['1', 'on', 'true', 'yes'].includes(String(body[key] ?? '').trim());
+    if (on('relay_enabled') && on('relay_auth') && !String(body.relay_user ?? '').trim()) {
+      return rerender('Authentication is on, so a username is required.');
+    }
+
+    const result = saveSettings(db, body);
+    if (!result.ok) return rerender(result.error);
+
+    const config = relayConfig(db);
+    logger.info?.(`admin: upstream relay settings updated (${config.enabled ? relayAddress(config) : 'off'})`);
+    return reply.view(
+      'admin/relay',
+      await relayModel({
+        notice: !config.enabled
+          ? 'Saved. The relay is off, so nothing leaves this machine.'
+          : config.localDomains.length
+            ? `Saved. Mail from ${config.localDomains.join(', ')} to any other domain is now relayed through ${relayAddress(config)}.`
+            : 'Saved. The relay is on, but no local domains are listed, so nothing is relayed yet.',
+      }),
+    );
+  });
+
+  /** Connect, greet and log in to the gateway without sending anything. */
+  app.post('/admin/relay/test', async (req, reply) => {
+    const result = await testRelay(db);
+    logger.info?.(`admin: relay test ${result.ok ? 'succeeded' : 'failed'} for ${result.where}`);
+    return reply.view('admin/relay', await relayModel(result.ok ? { notice: result.detail } : { error: result.error }));
   });
 
   // ---------- mailboxes ----------

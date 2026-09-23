@@ -4,6 +4,29 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.5.0 — 23 September 2026
+
+- New: **an upstream relay for outbound mail.** Admin ▸ Upstream relay hands mail
+  from your local domains to an SMTP server of your choosing — built for an email
+  security gateway such as OPSWAT MetaDefender Email Security — and delivers it once
+  the gateway sends it back. Host, port and optional login; plain SMTP, no TLS.
+  Mail between two addresses in the same domain never leaves and is still scanned by
+  ICAP if that is on; relayed mail skips the ICAP scan, since the gateway does it.
+  The sender's copy is marked *relayed, awaiting scan*, and the recipients see
+  nothing until the scanned copy comes back, so a message the gateway blocks never
+  reaches them. The returned copy is recognised by the IP address or host name it
+  comes from, and is never relayed twice. A message stamped as relayed that comes
+  back from anywhere else is refused as a loop.
+
+- New: **a relay failure is written into the message.** There is no queue: when the
+  gateway is unreachable or refuses a message, it is delivered locally without
+  scanning, with a footnote in the body naming the gateway, the affected recipients
+  and the exact error, including the gateway's SMTP reply. A "Test the connection"
+  button checks the gateway and the login without sending anything.
+
+- Changed: **"nothing ever leaves the machine" now has one opt-in exception.** With
+  the relay off, which is the default, nothing changes.
+
 ## v0.4.3 — 23 September 2026
 
 - New: **copy-paste run examples for macOS, Linux and Windows.** A "Running it"

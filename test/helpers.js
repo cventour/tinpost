@@ -21,7 +21,7 @@ export async function makeLab(overrides = {}) {
   // Built the way start() builds it. ICAP scanning is off by default, so this does
   // nothing until a test turns it on with useIcap().
   const scanner = new Scanner({ db, logger: { info() {}, error() {} } });
-  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner });
+  const delivery = new Delivery({ db, blobs, maxSize: config.maxSize, scanner, logger: { info() {}, error() {} } });
 
   return {
     config,

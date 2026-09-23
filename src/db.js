@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS messages (
@@ -20,7 +20,12 @@ CREATE TABLE IF NOT EXISTS messages (
   thread_key     TEXT,
   size_bytes     INTEGER NOT NULL DEFAULT 0,
   has_attachments INTEGER NOT NULL DEFAULT 0,
-  origin         TEXT NOT NULL DEFAULT 'smtp'
+  origin         TEXT NOT NULL DEFAULT 'smtp',
+  -- 0 for the copy an upstream gateway hands back: the sender already has their own.
+  sender_copy    INTEGER NOT NULL DEFAULT 1,
+  -- Upstream relay: NULL when it was never relayed, else relayed, failed or returned.
+  relay_status   TEXT,
+  relay_detail   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recipients (
@@ -29,7 +34,10 @@ CREATE TABLE IF NOT EXISTS recipients (
   address    TEXT NOT NULL,
   name       TEXT,
   kind       TEXT NOT NULL CHECK (kind IN ('to','cc','bcc')),
-  seen       INTEGER NOT NULL DEFAULT 0
+  seen       INTEGER NOT NULL DEFAULT 0,
+  -- 0 when this address is listed on the message but it was not delivered to them
+  -- here: it went to the upstream gateway, and their copy arrives when it comes back.
+  delivered  INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS attachments (
@@ -99,6 +107,18 @@ export class Db {
     const columns = this.#db.prepare('PRAGMA table_info(domains)').all().map((c) => c.name);
     if (!columns.includes('icap_scan')) {
       this.#db.exec('ALTER TABLE domains ADD COLUMN icap_scan INTEGER');
+    }
+
+    const messageColumns = this.#db.prepare('PRAGMA table_info(messages)').all().map((c) => c.name);
+    if (!messageColumns.includes('sender_copy')) {
+      this.#db.exec('ALTER TABLE messages ADD COLUMN sender_copy INTEGER NOT NULL DEFAULT 1');
+    }
+    if (!messageColumns.includes('relay_status')) this.#db.exec('ALTER TABLE messages ADD COLUMN relay_status TEXT');
+    if (!messageColumns.includes('relay_detail')) this.#db.exec('ALTER TABLE messages ADD COLUMN relay_detail TEXT');
+
+    const recipientColumns = this.#db.prepare('PRAGMA table_info(recipients)').all().map((c) => c.name);
+    if (!recipientColumns.includes('delivered')) {
+      this.#db.exec('ALTER TABLE recipients ADD COLUMN delivered INTEGER NOT NULL DEFAULT 1');
     }
   }
 
@@ -200,8 +220,9 @@ export class Db {
         .prepare(
           `INSERT INTO messages
              (message_id, from_addr, from_name, subject, date_utc, received_at, raw_hash,
-              body_text, html_hash, in_reply_to, refs, thread_key, size_bytes, has_attachments, origin)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              body_text, html_hash, in_reply_to, refs, thread_key, size_bytes, has_attachments, origin,
+              sender_copy, relay_status, relay_detail)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         .run(
           msg.messageId ?? null,
@@ -219,13 +240,16 @@ export class Db {
           msg.sizeBytes ?? 0,
           attachments.some((a) => !a.isInline) ? 1 : 0,
           msg.origin ?? 'smtp',
+          msg.senderCopy === false ? 0 : 1,
+          msg.relayStatus ?? null,
+          msg.relayDetail ?? null,
         );
       const id = Number(info.lastInsertRowid);
 
       const rcpt = this.#db.prepare(
-        'INSERT INTO recipients (message_id, address, name, kind) VALUES (?,?,?,?)',
+        'INSERT INTO recipients (message_id, address, name, kind, delivered) VALUES (?,?,?,?,?)',
       );
-      for (const r of recipients) rcpt.run(id, r.address, r.name ?? null, r.kind);
+      for (const r of recipients) rcpt.run(id, r.address, r.name ?? null, r.kind, r.delivered === false ? 0 : 1);
 
       const att = this.#db.prepare(
         `INSERT INTO attachments (message_id, filename, content_type, size_bytes, content_hash, content_id, is_inline)
@@ -254,7 +278,7 @@ export class Db {
 
   getRecipients(messageId) {
     return this.#db
-      .prepare('SELECT address, name, kind, seen FROM recipients WHERE message_id = ? ORDER BY id')
+      .prepare('SELECT address, name, kind, seen, delivered FROM recipients WHERE message_id = ? ORDER BY id')
       .all(messageId);
   }
 
@@ -286,7 +310,7 @@ export class Db {
         `SELECT m.*, MIN(r.seen) AS seen
            FROM messages m
            JOIN recipients r ON r.message_id = m.id
-          WHERE r.address = ? AND m.id > ?
+          WHERE r.address = ? AND r.delivered = 1 AND m.id > ?
           GROUP BY m.id
           ORDER BY m.id DESC
           LIMIT ?`,
@@ -299,7 +323,7 @@ export class Db {
     return this.#db
       .prepare(
         `SELECT m.*, 1 AS seen FROM messages m
-          WHERE m.from_addr = ? AND m.id > ?
+          WHERE m.from_addr = ? AND m.sender_copy = 1 AND m.id > ?
           ORDER BY m.id DESC LIMIT ?`,
       )
       .all(normaliseAddress(address), sinceId, limit);
@@ -311,8 +335,8 @@ export class Db {
     const row = this.#db
       .prepare(
         `SELECT 1 FROM messages m
-          WHERE m.id = ? AND (m.from_addr = ? OR EXISTS (
-                SELECT 1 FROM recipients r WHERE r.message_id = m.id AND r.address = ?))`,
+          WHERE m.id = ? AND ((m.from_addr = ? AND m.sender_copy = 1) OR EXISTS (
+                SELECT 1 FROM recipients r WHERE r.message_id = m.id AND r.address = ? AND r.delivered = 1))`,
       )
       .get(messageId, a, a);
     return !!row;
@@ -326,7 +350,7 @@ export class Db {
 
   unreadCount(address) {
     const row = this.#db
-      .prepare('SELECT COUNT(*) AS n FROM recipients WHERE address = ? AND seen = 0')
+      .prepare('SELECT COUNT(*) AS n FROM recipients WHERE address = ? AND seen = 0 AND delivered = 1')
       .get(normaliseAddress(address));
     return row ? Number(row.n) : 0;
   }
@@ -342,10 +366,11 @@ export class Db {
            FROM (
              SELECT r.address AS address, COUNT(*) AS received, 0 AS sent, MAX(m.date_utc) AS last_at
                FROM recipients r JOIN messages m ON m.id = r.message_id
+              WHERE r.delivered = 1
               GROUP BY r.address
              UNION ALL
              SELECT from_addr AS address, 0 AS received, COUNT(*) AS sent, MAX(date_utc) AS last_at
-               FROM messages GROUP BY from_addr
+               FROM messages WHERE sender_copy = 1 GROUP BY from_addr
            )
           GROUP BY address
           ORDER BY address`,
@@ -360,8 +385,8 @@ export class Db {
       .prepare(
         `DELETE FROM messages WHERE id IN (
            SELECT m.id FROM messages m
-            WHERE m.from_addr = ?
-               OR EXISTS (SELECT 1 FROM recipients r WHERE r.message_id = m.id AND r.address = ?))`,
+            WHERE (m.from_addr = ? AND m.sender_copy = 1)
+               OR EXISTS (SELECT 1 FROM recipients r WHERE r.message_id = m.id AND r.address = ? AND r.delivered = 1))`,
       )
       .run(a, a);
     return Number(info.changes);
