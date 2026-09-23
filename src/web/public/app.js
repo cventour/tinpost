@@ -473,7 +473,8 @@
 
     function renderLine(line) {
       var li = document.createElement('li');
-      li.className = 'log-line lv-' + line.level + ' log-new';
+      li.className =
+        'log-line lv-' + line.level + (line.wire ? ' wire-' + line.wire : '') + ' log-new';
       li.setAttribute('data-text', line.text);
       li.innerHTML =
         '<time datetime="' + esc(line.time) + '" title="' + esc(line.time) + '">' +

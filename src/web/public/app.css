@@ -20,6 +20,12 @@
   --err-line: #d05050;
   --ok-bg: #e9f5ec;
   --ok-line: #4d9f66;
+  /* The SMTP transcript, by direction. What the sender said is at full strength;
+     what Tinpost answered steps back — but only one step. The reply is the half
+     that carries the refusal you are usually hunting, so it is a good deal lighter
+     than hint text: 6.7:1 on the log's own background in light, 8.4:1 in dark. */
+  --wire-in: #1b1f24;
+  --wire-out: #4a5568;
   --shadow: 0 1px 2px rgba(16, 20, 28, 0.08), 0 1px 3px rgba(16, 20, 28, 0.06);
   --radius: 8px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -43,6 +49,8 @@
     --err-line: #b05555;
     --ok-bg: #1d3325;
     --ok-line: #4d9f66;
+    --wire-in: #e7eaee;
+    --wire-out: #aab4c2;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
@@ -63,6 +71,8 @@
   --err-line: #b05555;
   --ok-bg: #1d3325;
   --ok-line: #4d9f66;
+  --wire-in: #e7eaee;
+  --wire-out: #aab4c2;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
@@ -596,10 +606,19 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
    and keeps them rather than running everything onto one line. */
 .log-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.log-line.lv-error .log-level, .log-line.lv-error .log-text { color: var(--err-line); }
-.log-line.lv-warn .log-level, .log-line.lv-warn .log-text { color: var(--warn-line); }
 .log-line.lv-debug { color: var(--ink-dim); }
 .log-line.lv-debug .log-text { color: var(--ink-dim); }
+
+/* Direction, for the lines that have one. A transcript is read by hunting for the
+   turn where the two sides stopped agreeing, and that is far quicker to find when
+   the sender and the server do not share a colour. */
+.log-line.wire-in .log-text { color: var(--wire-in); }
+.log-line.wire-out .log-text { color: var(--wire-out); }
+
+/* Severity last, and so it wins: a 550 is a refusal first and an outbound line
+   second. Same specificity as the rules above, settled by order on purpose. */
+.log-line.lv-error .log-level, .log-line.lv-error .log-text { color: var(--err-line); }
+.log-line.lv-warn .log-level, .log-line.lv-warn .log-text { color: var(--warn-line); }
 /* Shown but not matching, while "matching lines only" is off. */
 .log-line.log-dim { opacity: 0.45; }
 

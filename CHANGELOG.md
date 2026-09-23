@@ -4,6 +4,19 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.4.1 — 23 September 2026
+
+- Changed: **the two sides of an SMTP conversation are told apart by tone.** What the
+  sender said is at full strength; what Tinpost answered sits one step back. A
+  transcript is read by hunting for the turn where the two sides stopped agreeing, and
+  that is much quicker to find when they do not share a colour. Both tones clear WCAG
+  AA against the log's own background in light and dark, and both are more readable
+  than the hint-text grey the transcript used before — the reply is the half that
+  carries the refusal you are usually looking for, so it is not dimmed into a whisper.
+  Lines with no direction, such as a delivery summary, are left alone, and an error or
+  a warning keeps its own colour: a `550` is a refusal first and an outbound line
+  second.
+
 ## v0.4.0 — 23 September 2026
 
 - New: **Tinpost offers `AUTH`, and accepts anything.** Some senders refuse to talk to

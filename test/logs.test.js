@@ -4,7 +4,7 @@ import { createConnection } from 'node:net';
 import { makeLab } from './helpers.js';
 import { createWebServer } from '../src/web/server.js';
 import { createSmtpServer } from '../src/smtp.js';
-import { LogBuffer, recordingLogger, channelOf } from '../src/logbuf.js';
+import { LogBuffer, recordingLogger, channelOf, wireOf } from '../src/logbuf.js';
 
 const quiet = { info() {}, error() {} };
 
@@ -51,6 +51,25 @@ test('a channel is read from the prefix the line was written with', () => {
   // Anything unrecognised is kept rather than dropped or mislabelled.
   assert.equal(channelOf('something with no prefix'), 'app');
   assert.equal(channelOf('postfix: not one of ours'), 'app');
+});
+
+test('a transcript line knows which way it was travelling', () => {
+  assert.equal(wireOf('smtp: [abc123] C: EHLO client.test'), 'in');
+  assert.equal(wireOf('smtp: [abc123] S: 250 Accepted'), 'out');
+  // A multi-line reply is one record; only its first line carries the marker.
+  assert.equal(wireOf('smtp: [abc] S: 250-tinpost hi\n250 SIZE 100'), 'out');
+  // Everything else has no direction and must not be coloured as though it had.
+  assert.equal(wireOf('smtp: accepted #7 from bob@corp.test'), null);
+  assert.equal(wireOf('smtp: connection from 192.168.1.201'), null);
+  assert.equal(wireOf('admin: settings updated'), null);
+  assert.equal(wireOf('smtp: refused a message from C: someone'), null);
+});
+
+test('the direction rides on the record, for the page and the tail alike', () => {
+  const logs = new LogBuffer();
+  assert.equal(logs.add('debug', 'smtp: [a1] C: MAIL FROM:<bob@corp.test>').wire, 'in');
+  assert.equal(logs.add('debug', 'smtp: [a1] S: 250 Accepted').wire, 'out');
+  assert.equal(logs.add('info', 'smtp: accepted #1 from bob@corp.test').wire, null);
 });
 
 test('selecting filters by channel and by minimum level', () => {
@@ -124,6 +143,33 @@ test('the log page renders what has been logged', async (t) => {
   // And it is reachable from the ribbon on every admin page.
   const admin = await lab.app.inject({ method: 'GET', url: '/admin' });
   assert.match(admin.body, /href="\/admin\/logs"/);
+});
+
+test('the two sides of a conversation are rendered in different tones', async (t) => {
+  const lab = await withLogs(t);
+  lab.logs.add('debug', 'smtp: [a1] C: EHLO mdcore.ops.lab');
+  lab.logs.add('debug', 'smtp: [a1] S: 235 Authentication successful');
+  lab.logs.add('info', 'smtp: accepted #1 from admin@ops.lab');
+
+  const res = await lab.app.inject({ method: 'GET', url: '/admin/logs' });
+  assert.match(res.body, /class="log-line lv-debug wire-in"/);
+  assert.match(res.body, /class="log-line lv-debug wire-out"/);
+  // A summary is not part of the conversation and keeps the ordinary treatment.
+  assert.match(res.body, /class="log-line lv-info"[^>]*data-text="smtp: accepted/);
+
+  const css = await lab.app.inject({ method: 'GET', url: '/static/app.css' });
+  assert.match(css.body, /\.log-line\.wire-in \.log-text \{ color: var\(--wire-in\); \}/);
+  // Both tones must exist in all three theme blocks, or one theme falls back to
+  // an inherited colour and the distinction quietly disappears.
+  assert.equal((css.body.match(/--wire-in:/g) || []).length, 3);
+  assert.equal((css.body.match(/--wire-out:/g) || []).length, 3);
+
+  // Severity has to outrank direction: a 550 reply reads as a refusal first. Same
+  // specificity, so this is settled purely by which rule comes last.
+  assert.ok(
+    css.body.indexOf('.log-line.lv-error .log-text') > css.body.indexOf('.log-line.wire-out .log-text'),
+    'the error rule must come after the direction rules',
+  );
 });
 
 test('a line is escaped rather than rendered as markup', async (t) => {

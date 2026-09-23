@@ -105,7 +105,7 @@
      data-channel="<%= query.channel %>" data-level="<%= query.level %>">
   <ol class="log-lines" data-log-lines>
     <% lines.forEach(function (line) { %>
-      <li class="log-line lv-<%= line.level %>" data-text="<%= line.text %>">
+      <li class="log-line lv-<%= line.level %><%= line.wire ? ' wire-' + line.wire : '' %>" data-text="<%= line.text %>">
         <time datetime="<%= line.time %>" title="<%= line.time %>"><%= line.time.slice(11, 19) %></time>
         <span class="log-level"><%= line.level %></span>
         <span class="log-text"><%= line.text %></span>

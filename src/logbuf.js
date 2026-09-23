@@ -45,6 +45,21 @@ export function channelOf(text) {
   return 'app';
 }
 
+/**
+ * Which way a transcript line was travelling, or null for anything that is not part
+ * of a conversation.
+ *
+ * Read from the `C:` / `S:` the SMTP library writes, after the channel prefix and the
+ * connection id: `smtp: [abc123] C: EHLO client.test`. A line that carries neither —
+ * a delivery summary, a connection notice, an error — has no direction and is left
+ * alone.
+ */
+export function wireOf(text) {
+  const match = /^[a-z][a-z0-9-]*: (?:\[[^\]]*\] )?([CS]): /.exec(text);
+  if (!match) return null;
+  return match[1] === 'C' ? 'in' : 'out';
+}
+
 function clip(text) {
   return text.length > MAX_LINE ? `${text.slice(0, MAX_LINE)} … [${text.length - MAX_LINE} more characters]` : text;
 }
@@ -95,6 +110,7 @@ export class LogBuffer extends EventEmitter {
       time: new Date().toISOString(),
       level: LOG_LEVELS.includes(level) ? level : 'info',
       channel: channelOf(text),
+      wire: wireOf(text),
       text,
     };
 
