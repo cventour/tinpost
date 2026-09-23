@@ -474,6 +474,7 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
 .setting-control .unit { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
 .setting.wide { grid-template-columns: minmax(0, 1fr); }
 .setting.wide .setting-control input { text-align: left; }
+.setting-control .nowrap { white-space: nowrap; flex: none; }
 
 .section .actions {
   display: flex; align-items: center; gap: 12px;

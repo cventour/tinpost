@@ -32,11 +32,15 @@
   <div class="setting wide">
     <div>
       <label class="setting-label" for="f-relay_host"><%= specs.relay_host.label %></label>
-      <p class="setting-hint"><%= specs.relay_host.hint %></p>
+      <p class="setting-hint">
+        <%= specs.relay_host.hint %> Test connection saves every setting on this page,
+        then connects, greets the server and logs in if authentication is on. It sends no mail.
+      </p>
     </div>
     <div class="setting-control">
       <input type="text" id="f-relay_host" name="relay_host" spellcheck="false"
              value="<%= values.relay_host %>" maxlength="<%= specs.relay_host.maxLength %>" required>
+      <button type="submit" class="btn small ghost nowrap" formaction="/admin/relay/test">Test connection</button>
     </div>
   </div>
 
@@ -54,19 +58,6 @@
       </div>
     </div>
   <% }) %>
-
-  <div class="setting">
-    <div>
-      <span class="setting-label">Connection</span>
-      <p class="setting-hint">
-        Saves every setting on this page, then connects to the server, greets it and
-        logs in if authentication is on. It does not send any mail.
-      </p>
-    </div>
-    <div class="setting-control">
-      <button type="submit" class="btn small ghost" formaction="/admin/relay/test">Save and test the connection</button>
-    </div>
-  </div>
 
   <% ['relay_timeout'].forEach(function (key) {
        const spec = specs[key]; %>

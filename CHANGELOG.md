@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.5.2 — 23 September 2026
+
+- Changed: **"Test connection" sits on the same line as the upstream server
+  address.** v0.5.1 put the test on a row of its own under the port, labelled "Save
+  and test the connection", where it was easy to miss. It is now a plain "Test
+  connection" button beside the address field. It still saves every setting on the
+  page before testing, and Save settings at the foot of the page is unchanged.
+
 ## v0.5.1 — 23 September 2026
 
 - Changed: **testing the relay connection saves first, and sits beside the address.**
