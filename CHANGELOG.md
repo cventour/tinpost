@@ -6,6 +6,14 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- Fixed: **a connection that sent nothing left no trace.** Only a delivered or refused
+  message was logged, so a sender that connected and then failed to get any further —
+  the exact thing you look at a log to diagnose — was invisible unless the full SMTP
+  transcript happened to be switched on. Every connection now logs a line of its own,
+  and a session that closes without sending anything says so. "Did it even reach me?"
+  is the first question asked of a lab mail server, and it should not need a setting
+  to answer.
+
 - Fixed: **the admin page showed the wrong SMTP port.** A port that had never been set
   on the page fell back to the built-in default — 2525 — even when the process was
   listening on something else entirely, which is the normal case: a `--smtp-port` flag,

@@ -38,6 +38,13 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       // take effect immediately rather than at the next restart.
       applyLimits(server, limits());
       transcript.on = protocolLoggingOn(db);
+
+      // A connection is worth a line of its own. "Did the sender reach me at all?"
+      // is the first question asked of a lab mail server, and until now only a
+      // delivered or refused message answered it — a client that connected and then
+      // failed to send anything left no trace whatsoever unless the full transcript
+      // was switched on.
+      logger.info?.(`smtp: connection from ${session.remoteAddress || 'unknown'}`);
       return callback();
     },
 
@@ -55,6 +62,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
         const err = new Error(`Too many recipients (limit is ${maxRecipients})`);
         err.responseCode = 452;
         logger.info?.(`smtp: refused recipient ${address.address} (over the ${maxRecipients} limit)`);
+        session.mbOutcomeLogged = true;
         return callback(err);
       }
 
@@ -66,6 +74,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
       const err = new Error(`Relay denied for ${domain || 'missing domain'}`);
       err.responseCode = 550;
       logger.info?.(`smtp: rejected ${address.address} (policy=allowlist)`);
+      session.mbOutcomeLogged = true;
       return callback(err);
     },
 
@@ -97,6 +106,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
         logger.info?.(
           `smtp: cut off an oversized message from ${session.envelope?.mailFrom?.address ?? 'unknown'}`,
         );
+        session.mbOutcomeLogged = true;
 
         const connection = connectionFor(server, session);
         if (connection) {
@@ -128,6 +138,7 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
           logger.info?.(
             `smtp: accepted #${summary.id} from ${summary.from} -> ${summary.addresses.join(', ')}`,
           );
+          session.mbOutcomeLogged = true;
           callback(null, `Message queued as ${summary.id}`);
         })
         .catch((err) => {
@@ -145,14 +156,31 @@ export function createSmtpServer({ db, blobs, delivery, config, logger = console
             logger.info?.(
               `smtp: refused a message from ${session.envelope?.mailFrom?.address ?? 'unknown'} (${err.message})`,
             );
+            session.mbOutcomeLogged = true;
             return callback(e);
           }
 
           logger.error?.(`smtp: delivery failed: ${err.stack || err.message}`);
+          session.mbOutcomeLogged = true;
           const e = new Error('Local error processing message');
           e.responseCode = 451;
           callback(e);
         });
+    },
+
+    /**
+     * Say so when a connection came and went with nothing to show for it.
+     *
+     * A session that delivered or was refused has already written its own line, so
+     * this stays quiet for those and speaks only for the case that used to be
+     * invisible: something connected, spoke or did not, and left. That is what a
+     * misconfigured sender looks like from this side.
+     */
+    onClose(session) {
+      if (session?.mbOutcomeLogged) return;
+      logger.info?.(
+        `smtp: connection from ${session?.remoteAddress || 'unknown'} closed without sending a message`,
+      );
     },
   });
 

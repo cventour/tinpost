@@ -300,6 +300,59 @@ test('the SMTP conversation is recorded only once it is switched on', async (t) 
   assert.ok(transcript.some((t2) => /^smtp: \[.+\] C: EHLO loud\.test/.test(t2)));
 });
 
+test('a bare connection is logged, even with the transcript switched off', async (t) => {
+  const lab = await makeLab();
+  t.after(() => lab.cleanup());
+  const logs = new LogBuffer();
+  const smtp = await withSmtp(t, lab, logs);
+  const { port } = smtp.address();
+
+  // Banner, then straight out again: a health check, a telnet probe, or a sender
+  // that cannot get past the greeting. It used to leave no trace at all.
+  await speak(port, ['QUIT']);
+  // smtp-server schedules onClose on the next tick, after the socket is gone.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  const lines = logs.select({ channel: 'smtp', level: 'info' }).map((l) => l.text);
+  assert.ok(
+    lines.some((t2) => /^smtp: connection from /.test(t2)),
+    `expected the connection itself in ${JSON.stringify(lines)}`,
+  );
+  assert.ok(
+    lines.some((t2) => /closed without sending a message/.test(t2)),
+    'and that it sent nothing',
+  );
+});
+
+test('a connection that delivers is not also reported as having sent nothing', async (t) => {
+  const lab = await makeLab();
+  t.after(() => lab.cleanup());
+  const logs = new LogBuffer();
+  const smtp = await withSmtp(t, lab, logs);
+  const { port } = smtp.address();
+
+  await speak(port, [
+    'EHLO sender.test',
+    'MAIL FROM:<bob@corp.test>',
+    'RCPT TO:<alice@lab.local>',
+    'DATA',
+    ['From: bob@corp.test', 'To: alice@lab.local', 'Subject: Sent', '', 'body', '.'].join('\r\n'),
+    'QUIT',
+  ]);
+
+  // The close hook has to run before the assertion; it is scheduled on the next tick.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  const lines = logs.select({ channel: 'smtp', level: 'info' }).map((l) => l.text);
+  assert.ok(lines.some((t2) => /^smtp: connection from /.test(t2)), 'the connection is still logged');
+  assert.ok(lines.some((t2) => /accepted #\d+/.test(t2)), 'and so is the delivery');
+  assert.equal(
+    lines.filter((t2) => /closed without sending a message/.test(t2)).length,
+    0,
+    'a delivered session already said what became of it',
+  );
+});
+
 test('a delivery is summarised in the log whatever the transcript switch says', async (t) => {
   const lab = await makeLab();
   t.after(() => lab.cleanup());

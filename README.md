@@ -168,6 +168,10 @@ restart. A lab instance is started, used and thrown away; a file on disk would h
 to be rotated, permissioned and cleaned up to answer a question that the last few
 thousand lines already answer.
 
+Every connection is logged as it arrives, whether or not anything is then sent: a
+sender that connects and gets no further still leaves `smtp: connection from …` and
+`… closed without sending a message`, which is usually the whole diagnosis.
+
 Under the list is a switch for the **SMTP conversation**: with it on, every command
 and reply is recorded &mdash; `C: MAIL FROM:<…>`, `S: 250 Accepted` and the rest
 &mdash; tagged with the connection it belongs to so overlapping senders stay apart.
