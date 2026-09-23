@@ -6,6 +6,11 @@ Every release, in plain language. Newest first.
 
 ## Unreleased
 
+- Changed: **the SMTP conversation switch is now a pill in the action bar**, beside
+  Clear log, rather than a section with its own Save button at the foot of the page.
+  It is the control you reach for while reading the log, so it belongs with the others
+  — one press flips it. It is still a plain form post, so it works with JavaScript off.
+
 - Fixed: **a connection that sent nothing left no trace.** Only a delivered or refused
   message was logged, so a sender that connected and then failed to get any further —
   the exact thing you look at a log to diagnose — was invisible unless the full SMTP

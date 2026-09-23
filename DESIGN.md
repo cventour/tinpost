@@ -360,7 +360,8 @@ The one component that is more than the sum of its tokens.
 - **Level colour:** Errors take `--err-line`, warnings `--warn-line`, and protocol detail sits at `--ink-dim` for the whole row &mdash; severity is carried by colour, never by weight, so the monospace rhythm holds.
 - **Highlighting:** Matches are wrapped in `<mark>` at a 34% accent wash, rebuilt from the row's `data-text` on every keystroke so highlights never nest. Non-matching rows are hidden, or dropped to `0.45` opacity when "matching lines only" is off.
 - **Arrival:** A tailed row plays `log-flash`, a 1.2s ease-out from a 20% accent wash, suppressed under `prefers-reduced-motion` &mdash; the same grammar as an arriving inbox row, one step quieter.
-- **Control rows:** Filters wrap with the find box on a row of its own; the action bar below sits under a `--line` rule with the destructive control pushed to the far end by `margin-left: auto`.
+- **Control rows:** Filters wrap with the find box on a row of its own; the action bar below sits under a `--line` rule, with the transcript switch and the destructive control held together at the far end by `margin-left: auto` on the first of them.
+- **Pill switch (`.pill`):** A 32x18 track on `--line` with a 14px knob, filling to `--accent` and sliding the knob 14px when on, both over .18s. It is a `<button type="submit">` carrying `role="switch"` and `aria-checked`, inside a form whose hidden field holds the *opposite* value — so one press flips it, the state shown is always the state the server holds, and it needs no JavaScript. Use it for a setting that is genuinely binary and applies at once; a setting that needs saving alongside others stays an On/Off `<select>` in a `.setting` row.
 
 ## Do's and Don'ts
 

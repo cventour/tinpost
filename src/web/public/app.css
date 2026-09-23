@@ -560,8 +560,9 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
   padding: 10px 0; border-top: 1px solid var(--line);
 }
-/* Push the destructive control away from the ones pressed casually. */
-.log-bar .danger-form, .log-bar form:last-child { margin-left: auto; }
+/* The right-hand group: the transcript switch and, beyond it, the destructive
+   control, held away from the ones pressed casually. */
+.log-bar .log-bar-end { margin-left: auto; }
 .log-state { font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .log-dropped { margin: 0 0 8px; }
 
@@ -609,5 +610,45 @@ table.kv th { width: 130px; color: var(--ink-dim); font-weight: 500; }
 @media (max-width: 680px) {
   .log-line { grid-template-columns: 7ch minmax(0, 1fr); }
   .log-level { display: none; }
-  .log-bar form:last-child { margin-left: 0; }
+  .log-bar .log-bar-end { margin-left: 0; }
+}
+
+/* ---------------------------------------------------------------
+   Pill switch
+
+   A button, not a checkbox: pressing it submits the form it sits in,
+   so the state it shows is always the state the server holds rather
+   than an optimistic one the page invented. role="switch" plus
+   aria-checked is what carries that to a screen reader, since a
+   <button> on its own only announces a press.
+   --------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 2px; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--ink-dim);
+  transition: color .16s ease;
+}
+.pill:hover { color: var(--ink); }
+.pill[aria-checked="true"] { color: var(--ink); }
+
+.pill-track {
+  position: relative; flex: none;
+  width: 32px; height: 18px; border-radius: 999px;
+  background: var(--line);
+  transition: background-color .18s ease;
+}
+.pill-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(16, 20, 28, 0.35);
+  transition: transform .18s ease;
+}
+.pill[aria-checked="true"] .pill-track { background: var(--accent); }
+.pill[aria-checked="true"] .pill-knob { transform: translateX(14px); }
+.pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pill, .pill-track, .pill-knob { transition: none; }
 }

@@ -172,7 +172,7 @@ Every connection is logged as it arrives, whether or not anything is then sent: 
 sender that connects and gets no further still leaves `smtp: connection from …` and
 `… closed without sending a message`, which is usually the whole diagnosis.
 
-Under the list is a switch for the **SMTP conversation**: with it on, every command
+In the action bar is a pill switch for the **SMTP conversation**: with it on, every command
 and reply is recorded &mdash; `C: MAIL FROM:<…>`, `S: 250 Accepted` and the rest
 &mdash; tagged with the connection it belongs to so overlapping senders stay apart.
 It is off by default because it is several lines per command, and it is only ever

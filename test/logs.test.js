@@ -195,6 +195,26 @@ test('clearing wipes the log and says so in the log', async (t) => {
   assert.equal(lab.logs.select({}).length, 0, 'the page renders before the note lands');
 });
 
+test('the transcript switch is a pill in the action bar that flips on one press', async (t) => {
+  const lab = await withLogs(t);
+
+  const off = await lab.app.inject({ method: 'GET', url: '/admin/logs' });
+  assert.match(off.body, /role="switch" aria-checked="false"/);
+  // The hidden field carries the value it is NOT on, so pressing it toggles — which is
+  // what lets the switch work with no JavaScript at all.
+  assert.match(off.body, /name="protocol" value="1"/);
+
+  lab.db.setSetting('log_smtp_protocol', '1');
+  const on = await lab.app.inject({ method: 'GET', url: '/admin/logs' });
+  assert.match(on.body, /role="switch" aria-checked="true"/);
+  assert.match(on.body, /name="protocol" value="0"/);
+
+  // It sits in the bar beside Clear log, not in a section of its own below.
+  const bar = on.body.slice(on.body.indexOf('class="log-bar"'), on.body.indexOf('data-log-view'));
+  assert.match(bar, /SMTP conversation/);
+  assert.match(bar, /Clear log/);
+});
+
 test('the transcript switch is stored and reported back', async (t) => {
   const lab = await withLogs(t);
   assert.equal(lab.db.getSetting('log_smtp_protocol'), null);

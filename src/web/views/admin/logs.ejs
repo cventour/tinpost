@@ -69,6 +69,21 @@
 
   <a class="btn small" href="/admin/logs.txt?channel=<%= query.channel %>&amp;level=<%= query.level %>">Download</a>
 
+  <%#
+    A switch that posts. The hidden field carries the value the switch is *not* on, so
+    one press flips it — which means the control needs no JavaScript to work, and the
+    page it comes back to already reflects the new state.
+  %>
+  <form method="post" action="/admin/logs/protocol?channel=<%= query.channel %>&amp;level=<%= query.level %>"
+        class="inline log-bar-end">
+    <input type="hidden" name="protocol" value="<%= protocol ? '0' : '1' %>">
+    <button type="submit" class="pill" role="switch" aria-checked="<%= protocol ? 'true' : 'false' %>"
+            title="Record every SMTP command and reply, tagged with the connection it belongs to">
+      <span class="pill-track" aria-hidden="true"><span class="pill-knob"></span></span>
+      <span class="pill-text">SMTP conversation</span>
+    </button>
+  </form>
+
   <form method="post" action="/admin/logs/clear?channel=<%= query.channel %>&amp;level=<%= query.level %>" class="inline">
     <button class="btn small danger" type="submit">Clear log</button>
   </form>
@@ -106,37 +121,19 @@
   </p>
 </div>
 
+<p class="hint">
+  <strong>SMTP conversation</strong> records every command and reply &mdash;
+  <code>C: MAIL FROM:&lt;&hellip;&gt;</code>, <code>S: 250 Accepted</code> &mdash; tagged with
+  the connection it belongs to, so overlapping senders stay apart. It is several lines
+  per command, so it fills the buffer quickly while it is on. Those lines are only ever
+  written here, never to the terminal, and they show at the <em>Everything</em> level.
+</p>
+
 <% if (truncated) { %>
   <p class="hint">
     Showing the most recent <%= lines.length.toLocaleString('en') %> lines. The rest
     are still in the download.
   </p>
 <% } %>
-
-<h2>SMTP conversation</h2>
-<form method="post" action="/admin/logs/protocol?channel=<%= query.channel %>&amp;level=<%= query.level %>">
-  <div class="setting wide">
-    <div>
-      <label class="setting-label" for="f-protocol">Record every command and reply</label>
-      <p class="setting-hint">
-        The raw dialogue — <code>C: MAIL FROM:&lt;…&gt;</code>, <code>S: 250 Accepted</code>
-        and the rest — tagged with the connection it belongs to, so overlapping senders
-        stay apart. It is several lines per command, so it is off by default and fills
-        the buffer quickly while it is on. These lines are only ever written here, never
-        to the terminal, and they show at the <em>Everything</em> level.
-      </p>
-    </div>
-    <div class="setting-control">
-      <select id="f-protocol" name="protocol">
-        <option value="1" <%= protocol ? 'selected' : '' %>>On</option>
-        <option value="0" <%= protocol ? '' : 'selected' %>>Off</option>
-      </select>
-    </div>
-  </div>
-  <div class="actions">
-    <button type="submit" class="btn">Save</button>
-    <span class="save-note">Applies from the next connection.</span>
-  </div>
-</form>
 
 <%- include('../partials/admin-shell-close') %>
