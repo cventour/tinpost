@@ -227,7 +227,9 @@ test('the transcript switch is stored and reported back', async (t) => {
   });
   assert.equal(on.statusCode, 200);
   assert.equal(lab.db.getSetting('log_smtp_protocol'), '1');
-  assert.match(on.body, /Recording the SMTP conversation/);
+  // The pill reports the new state; there is deliberately no banner saying so as well.
+  assert.match(on.body, /role="switch" aria-checked="true"/);
+  assert.doesNotMatch(on.body, /class="notice"/);
 
   const off = await lab.app.inject({
     method: 'POST',
@@ -236,7 +238,8 @@ test('the transcript switch is stored and reported back', async (t) => {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
   assert.equal(lab.db.getSetting('log_smtp_protocol'), '0');
-  assert.match(off.body, /Stopped recording/);
+  assert.match(off.body, /role="switch" aria-checked="false"/);
+  assert.doesNotMatch(off.body, /class="notice"/);
 });
 
 // ---------- the SMTP transcript ----------

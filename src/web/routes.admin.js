@@ -469,14 +469,9 @@ export async function registerAdminRoutes(app) {
     // The listener holds its own copy so it is not read per line; push the new value.
     smtp?.refresh?.();
     logger.info?.(`admin: SMTP conversation logging turned ${on ? 'on' : 'off'}`);
-    return reply.view(
-      'admin/logs',
-      await logsModel(req, {
-        notice: on
-          ? 'Recording the SMTP conversation. Every command and reply now appears here, from the next connection on.'
-          : 'Stopped recording the SMTP conversation. The summary lines carry on as before.',
-      }),
-    );
+    // No banner: the pill already shows which way it is set, and a notice that says
+    // the same thing only pushes the log down the page every time it is pressed.
+    return reply.view('admin/logs', await logsModel(req));
   });
 
   app.post('/admin/purge', async (req, reply) => {
