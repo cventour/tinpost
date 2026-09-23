@@ -13,6 +13,10 @@ import { registerAdminRoutes } from './routes.admin.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+// package.json is the single source of truth for the version (see VERSIONING.md).
+// Read once at load: it cannot change under a running process.
+const { version } = JSON.parse(readFileSync(join(here, '..', '..', 'package.json'), 'utf8'));
+
 export async function createWebServer({
   db,
   blobs,
@@ -38,7 +42,7 @@ export async function createWebServer({
     engine: { ejs },
     root: join(here, 'views'),
     viewExt: 'ejs',
-    defaultContext: { fmtBytes, fmtDate, escapeHtml },
+    defaultContext: { fmtBytes, fmtDate, escapeHtml, version },
   });
 
   app.decorate('mb', { db, blobs, delivery, config, smtp, privilege, portNotice, logger, logs });

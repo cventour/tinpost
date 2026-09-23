@@ -20,7 +20,12 @@
 <body>
 <%- include('icons') %>
 <header class="topbar">
-  <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span class="brand-dot" aria-hidden="true">·</span><span class="brand-tail">post</span></a>
+  <%# The version rides beside the wordmark, outside the link, so the product still
+      reads and copies as "Tinpost" on its own. %>
+  <div class="brand-wrap">
+    <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span class="brand-dot" aria-hidden="true">·</span><span class="brand-tail">post</span></a>
+    <span class="brand-version" title="Tinpost version <%= version %>">v<%= version %></span>
+  </div>
   <nav>
     <% if (locals.addr) { %>
       <a class="nav-link" href="/compose">Compose</a>

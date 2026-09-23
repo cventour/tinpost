@@ -32,6 +32,18 @@ async function seed(lab, overrides = {}) {
   );
 }
 
+test('every page carries the version from package.json', async (t) => {
+  const lab = await withWeb(t);
+  const { readFileSync } = await import('node:fs');
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
+  // package.json is the single source of truth; nothing else may declare a version.
+  for (const url of ['/', '/admin', '/admin/logs']) {
+    const res = await lab.app.inject({ method: 'GET', url });
+    assert.match(res.body, new RegExp(`class="brand-version"[^>]*>v${pkg.version.replace(/\./g, '\\.')}<`), url);
+  }
+});
+
 test('the entry page asks for an address', async (t) => {
   const lab = await withWeb(t);
   const res = await lab.app.inject({ method: 'GET', url: '/' });
