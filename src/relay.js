@@ -13,10 +13,10 @@ import { domainOf } from './db.js';
  *
  * Three rules shape everything here:
  *
- *   - Mail goes through the gateway when it crosses a local domain's boundary, in
- *     either direction: out of a local domain to any other, or into a local domain
- *     from any other. Mail that stays inside one domain is delivered directly, and so
- *     is mail between two domains neither of which is local.
+ *   - Mail goes through the gateway when exactly one side of it is local: out of a
+ *     local domain to a domain that is not, or into a local domain from one that is
+ *     not. Mail between two local domains is internal and is delivered directly, and
+ *     so is mail between two domains neither of which is local.
  *   - Mail that arrives from the gateway is never relayed again. It is recognised by
  *     the address it connects from, which is the one thing a sender cannot forge.
  *   - There is no queue. When the gateway cannot take the message, it is delivered
@@ -61,23 +61,22 @@ export function isLocalSender(config, from) {
 /**
  * Split a message's recipients into those delivered here and those relayed.
  *
- * A recipient is relayed when the message crosses a local domain's boundary to reach
- * them: the sender is local and the recipient is in another domain (outbound), or the
- * recipient is local and the sender is in another domain (inbound). A recipient in
- * the sender's own domain is always delivered directly, and so is one where neither
- * side is local.
+ * A recipient is relayed when exactly one side is local: a local sender writing to a
+ * domain that is not local (outbound), or a sender from outside writing into a local
+ * domain (inbound). Local to local is internal mail, whichever local domains are
+ * involved, and outside to outside never touches the lab's domains; both are
+ * delivered directly.
  *
  * @returns {{ local: string[], relay: string[] }}
  */
 export function planRoute(config, { from, recipients = [] }) {
   if (!config.enabled) return { local: [...recipients], relay: [] };
-  const senderDomain = domainOf(from ?? '');
-  const senderLocal = !!senderDomain && config.localDomains.includes(senderDomain);
+  const isLocal = (domain) => !!domain && config.localDomains.includes(domain);
+  const senderLocal = isLocal(domainOf(from ?? ''));
   const local = [];
   const relay = [];
   for (const address of recipients) {
-    const domain = domainOf(address);
-    const crosses = domain !== senderDomain && (senderLocal || config.localDomains.includes(domain));
+    const crosses = senderLocal !== isLocal(domainOf(address));
     (crosses ? relay : local).push(address);
   }
   return { local, relay };

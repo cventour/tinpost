@@ -234,7 +234,7 @@ export const RELAY_SETTINGS = {
   },
   relay_local_domains: {
     label: 'Local domains',
-    hint: 'Mail crossing into or out of one of these domains is relayed: from a local domain to any other domain, and from any other domain to a local one. Mail between two addresses in the same domain, and mail between two domains that are not local, is delivered directly.',
+    hint: 'Mail with exactly one local side is relayed: from a local domain to a domain that is not listed, and from an unlisted domain to a local one. Mail between local domains is internal and delivered directly, and so is mail between two unlisted domains.',
     type: 'domains',
     default: '',
     maxLength: 4000,

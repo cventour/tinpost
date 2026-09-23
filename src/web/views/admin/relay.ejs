@@ -4,8 +4,7 @@
 <p class="lede">
   Hand mail crossing into or out of your local domains to an upstream server &mdash; a
   security gateway such as OPSWAT MetaDefender Email Security &mdash; which scans it
-  and sends it back here for delivery. Mail between two addresses in the same domain
-  never leaves. If the gateway cannot take a message, it is delivered here unscanned,
+  and sends it back here for delivery. Mail between local addresses never leaves. If the gateway cannot take a message, it is delivered here unscanned,
   with a footnote in its body giving the error.
 </p>
 
@@ -138,17 +137,17 @@
 <h2>How mail is routed</h2>
 <table class="kv">
   <tr>
-    <th>From a local domain to the same domain</th>
+    <th>From a local domain to a local domain</th>
     <td>Delivered here directly. Attachment scanning applies as set on the Scanning page.</td>
   </tr>
   <tr>
-    <th>From a local domain to any other domain</th>
+    <th>From a local domain to a domain that is not local</th>
     <td>Handed to the upstream server. The sender's copy is marked &ldquo;relayed, awaiting
       scan&rdquo;; the recipients receive it when the gateway sends it back. Attachment
       scanning here is skipped, since the gateway does it.</td>
   </tr>
   <tr>
-    <th>From any other domain to a local domain</th>
+    <th>From a domain that is not local to a local domain</th>
     <td>Handed to the upstream server, whether it was written in the webmail or arrived
       over SMTP. The local recipients receive it when the gateway sends it back.
       Attachment scanning here is skipped, since the gateway does it.</td>

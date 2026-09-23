@@ -97,11 +97,12 @@ async function labWithGateway(t, gatewayOptions = {}, relaySettings = {}) {
 
 // ---------- routing rules ----------
 
-test('only a local sender writing outside their own domain is relayed', () => {
+test('mail is relayed when exactly one side is local', () => {
   const config = { enabled: true, localDomains: ['lab.local', 'corp.test'] };
+  // Local to local is internal, even across two local domains.
   assert.deepEqual(planRoute(config, { from: 'a@lab.local', recipients: ['b@lab.local', 'c@gmail.com', 'd@corp.test'] }), {
-    local: ['b@lab.local'],
-    relay: ['c@gmail.com', 'd@corp.test'],
+    local: ['b@lab.local', 'd@corp.test'],
+    relay: ['c@gmail.com'],
   });
   // Into a local domain from outside goes through the gateway; outside to outside does not.
   assert.deepEqual(planRoute(config, { from: 'x@elsewhere.test', recipients: ['a@lab.local', 'y@elsewhere.test', 'z@other.test'] }), {

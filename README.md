@@ -502,15 +502,15 @@ How each message is routed:
 
 | Message | What happens |
 |---|---|
-| From a local domain to the **same** domain | Delivered directly. Never leaves. ICAP scanning applies as usual. |
-| From a local domain to **any other** domain | Handed to the gateway. The sender's copy is marked *relayed, awaiting scan*; the recipients get it when the gateway sends it back. Tinpost's own ICAP scan is skipped. |
-| From any other domain **to a local domain** | Handed to the gateway too, whether it was written in the webmail or arrived over SMTP. The local recipients get it when the gateway sends it back. |
+| From a local domain to a **local** domain | Internal mail. Delivered directly, never leaves. ICAP scanning applies as usual. |
+| From a local domain to a domain that is **not local** | Handed to the gateway. The sender's copy is marked *relayed, awaiting scan*; the recipients get it when the gateway sends it back. Tinpost's own ICAP scan is skipped. |
+| From a domain that is not local **to a local domain** | Handed to the gateway too, whether it was written in the webmail or arrived over SMTP. The local recipients get it when the gateway sends it back. |
 | Sent back by the gateway | Delivered to the recipients it was relayed for, and never relayed again. |
 | Gateway unreachable, or it refuses the message | Delivered locally **without scanning**, with a footnote in the body giving the error, SMTP reply included. |
 | Between two domains that are **not local** | Delivered directly. ICAP scanning applies as usual. |
 
-A message addressed to both kinds of recipient is split: colleagues in the sender's
-domain get it straight away, and everyone else gets it through the gateway. Mail that
+A message addressed to both kinds of recipient is split: local recipients of a local
+sender get it straight away, and everyone else gets it through the gateway. Mail that
 the gateway itself delivers to Tinpost — including inbound mail it has already
 scanned — is recognised by its address and delivered directly, never sent round again.
 
@@ -529,10 +529,10 @@ in, and sends nothing. Relay activity is under the **Relay** channel on the Logs
 Mail on its way out is accepted even under the allowlist policy, since the allowlist
 is about which domains Tinpost hosts, and outbound recipients are not hosted here.
 
-Anything that sends straight to Tinpost's SMTP port from another domain into a local
-one — a script, a product's notification mail — now goes through the gateway as well.
-If a sender should bypass the gateway, list its address under gateway return
-addresses; its mail is then delivered directly.
+Anything that sends straight to Tinpost's SMTP port from a domain that is not local
+into a local one goes through the gateway as well. A product whose notifications come
+from a local address — `mdcore@ops.lab` writing to `admin@ops.lab` — is internal mail
+and is delivered directly.
 
 ## Options
 

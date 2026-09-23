@@ -4,6 +4,15 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.6.1 — 23 September 2026
+
+- Fixed: **mail between two local domains is internal.** With more than one local
+  domain listed, mail from one to another was sent through the gateway, because only
+  "the same domain" was exempt. The rule is now whether exactly one side is local:
+  local to local is delivered directly, whichever local domains are involved. A
+  product sending notifications from a local address to local recipients — MetaDefender
+  Core writing from `mdcore@ops.lab` — is delivered directly, as it was.
+
 ## v0.6.0 — 23 September 2026
 
 - **Changes behaviour when the relay is on:** mail from any other domain *to* a local
