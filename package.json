@@ -1,9 +1,17 @@
 {
   "name": "tinpost",
-  "version": "0.7.6",
-  "description": "Self-contained lab mail server: SMTP sink for any domain plus a webmail UI, offline unless you add an upstream relay.",
+  "version": "0.7.7",
+  "description": "A self-contained mail server with a web interface for lab environments. Supports a message timeline, live SMTP logs viewing, ICAP scanning and gateway relay",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/cventour/tinpost#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cventour/tinpost.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cventour/tinpost/issues"
+  },
   "bin": {
     "tinpost": "./src/cli.js"
   },
@@ -33,10 +41,16 @@
   "keywords": [
     "smtp",
     "mail",
+    "mail-server",
     "webmail",
+    "email",
     "lab",
     "testing",
+    "security-testing",
+    "icap",
+    "phishing-simulation",
     "mailhog",
+    "mailpit",
     "offline"
   ]
 }

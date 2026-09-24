@@ -4,6 +4,15 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.7 — 24 September 2026
+
+- Changed: **package metadata is ready for the npm registry.** `package.json` now
+  carries the current description, a fuller keyword list, and `homepage`, `repository`
+  and `bugs` links back to GitHub — without them an npm page has no route to the
+  source. The README's images are absolute URLs rather than repository-relative ones,
+  because the published tarball ships the README but not `docs/`, so every screenshot
+  would otherwise be a broken image on the package page.
+
 ## v0.7.6 — 24 September 2026
 
 - Changed: **the README states the authorised-use position in full**, under *What it is

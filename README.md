@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/tinpost-lockup-dark.png">
-  <img src="docs/brand/tinpost-lockup.png" alt="Tinpost" width="380">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/cventour/tinpost/main/docs/brand/tinpost-lockup-dark.png">
+  <img src="https://raw.githubusercontent.com/cventour/tinpost/main/docs/brand/tinpost-lockup.png" alt="Tinpost" width="380">
 </picture>
 
 A self-contained mail server for lab environments. It listens on SMTP, accepts mail
@@ -250,27 +250,27 @@ elevation. See [Port 25](#port-25-needs-root--except-on-windows).
 
 **Inbox** — open a mailbox by typing its address. New mail arrives without a reload.
 
-![The Tinpost inbox, showing six messages in the mailbox alice@lab.local](docs/images/inbox.png)
+![The Tinpost inbox, showing six messages in the mailbox alice@lab.local](https://raw.githubusercontent.com/cventour/tinpost/main/docs/images/inbox.png)
 
 **Timeline** — every message and connection across all mailboxes, with an activity
 chart, one filter per outcome, and search. Click a message to open it.
 
-![The Tinpost timeline, showing delivered, returned, refused and connection events with an activity chart above](docs/images/timeline.png)
+![The Tinpost timeline, showing delivered, returned, refused and connection events with an activity chart above](https://raw.githubusercontent.com/cventour/tinpost/main/docs/images/timeline.png)
 
 **Upstream relay** — hand mail crossing your domain boundary to a security gateway,
 which scans it and sends it back.
 
-![The upstream relay admin page, configured to relay through a gateway](docs/images/admin-relay.png)
+![The upstream relay admin page, configured to relay through a gateway](https://raw.githubusercontent.com/cventour/tinpost/main/docs/images/admin-relay.png)
 
 **Attachment scanning** — send every attachment to an ICAP server and accept the
 message only if it comes back approved. Configurable per domain as well as globally.
 
-![The attachment scanning admin page, configured to send attachments to an ICAP server for a verdict](docs/images/admin-scanning.png)
+![The attachment scanning admin page, configured to send attachments to an ICAP server for a verdict](https://raw.githubusercontent.com/cventour/tinpost/main/docs/images/admin-scanning.png)
 
 **Logs** — the server's own output, live, with the full SMTP conversation recorded per
 connection. What the sender said and what Tinpost answered are toned differently.
 
-![The Tinpost logs page showing an SMTP conversation with client and server lines in different tones](docs/images/admin-logs.png)
+![The Tinpost logs page showing an SMTP conversation with client and server lines in different tones](https://raw.githubusercontent.com/cventour/tinpost/main/docs/images/admin-logs.png)
 
 ## What changed
 

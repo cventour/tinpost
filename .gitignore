@@ -17,3 +17,6 @@ brand-source/
 # The design skill's machine-readable sidecar. Nothing reads it, and it describes the
 # UI as it stood at v0.2.0 — DESIGN.md is the current, maintained account.
 .impeccable/
+
+# npm pack output
+*.tgz
