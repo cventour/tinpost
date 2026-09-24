@@ -112,29 +112,48 @@ does not protect and how to report a vulnerability.
 
 ## Installing
 
-Tinpost is not published to the npm registry. Install it from the repository.
+Three ways, in order of how little they leave behind. All of them need Node.js 22.5 or
+newer and nothing else — `brew install node` on macOS,
+`winget install OpenJS.NodeJS.LTS` on Windows.
 
-### macOS
+### Run it without installing anything
 
 ```bash
-brew install node          # if you do not have Node 22.5+ already
+npx tinpost serve
+```
+
+Identical in PowerShell, a macOS or Linux shell, anywhere. npm fetches the package,
+runs it, and keeps nothing on your PATH. Best for trying it, or for a throwaway
+lab that only needs to exist for an afternoon.
+
+### Install the command
+
+```bash
+npm install -g tinpost
+tinpost serve
+```
+
+Gives you a `tinpost` command that stays. On Windows this creates `tinpost.cmd`, so it
+works from PowerShell and `cmd.exe` alike. `npm update -g tinpost` moves it forward.
+
+### From the repository
+
+For reading the source, running the tests or changing it:
+
+```bash
 git clone https://github.com/cventour/tinpost.git
 cd tinpost
 npm ci
 npm start
 ```
 
-### Windows (PowerShell)
+The same three commands on macOS, Windows and Linux. `npm ci` downloads pure
+JavaScript; no build step runs and no compiler is needed. `npm install -g .` from the
+checkout puts your working copy on the PATH instead of the published one.
 
-```powershell
-winget install OpenJS.NodeJS.LTS    # if you do not have Node 22.5+ already
-git clone https://github.com/cventour/tinpost.git
-cd tinpost
-npm ci
-npm start
-```
+### Whichever route
 
-Either way it prints where it is listening:
+It prints where it is listening:
 
 ```
   Webmail   http://127.0.0.1:8025
@@ -144,10 +163,6 @@ Either way it prints where it is listening:
 
 Open the webmail URL, type any address — `alice@lab.local` will do — and you are in
 that mailbox. Stop it with `Ctrl+C`.
-
-To get a `tinpost` command on your PATH instead of `npm start`, run `npm install -g .`
-from the checkout. On Windows that creates `tinpost.cmd`, so `tinpost serve` works in
-PowerShell and `cmd.exe` alike.
 
 ### Send it a test message
 
@@ -168,8 +183,9 @@ It appears in the open page within a second, without a reload.
 
 ## Running it
 
-Stop it with `Ctrl+C`. If you installed globally, write `tinpost serve` wherever these
-say `node src/cli.js serve`.
+The examples below use `node src/cli.js serve`, which is the form for a clone. If you
+installed the command, write `tinpost serve` instead; if you are using npx, write
+`npx tinpost serve`. The options are the same in all three. Stop it with `Ctrl+C`.
 
 ### macOS and Linux
 

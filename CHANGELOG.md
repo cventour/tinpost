@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.9 — 24 September 2026
+
+- New: **Tinpost is on the npm registry**, so it can be run without being installed at
+  all: `npx tinpost serve` fetches it, runs it and leaves nothing behind. The README's
+  Installing section now offers three routes in order of how little each leaves on your
+  machine — npx, a global `npm install -g tinpost`, and a clone for reading the source
+  or running the tests.
+
 ## v0.7.8 — 24 September 2026
 
 - Fixed: **the `tinpost` command would not have been installed from the registry.** The
