@@ -4,6 +4,21 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.5 — 24 September 2026
+
+- New: **`SECURITY.md` — security and intended use.** The MIT licence grants permission
+  but says nothing about what Tinpost is for, so this does: authorised testing in
+  environments you control, and plainly not deception of people who have not consented
+  to a test. It also collects what Tinpost deliberately does not protect — no passwords
+  anywhere, `AUTH` that proves nothing, an unencrypted relay — and sets out what is in
+  and out of scope for a vulnerability report, with a private channel for sending one.
+  The licence itself is untouched.
+
+- Removed: **the design skill's JSON sidecar is no longer tracked.** Nothing read
+  `.impeccable/design.json`, and it described the UI as it stood at v0.2.0 — before the
+  logs page, the timeline, the relay and the pill switch. `DESIGN.md` is the current
+  account.
+
 ## v0.7.4 — 24 September 2026
 
 - New: **Tinpost has a logo.** An open tin with a letter in it — the name, drawn. It

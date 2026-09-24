@@ -69,6 +69,11 @@ If you need mail that actually reaches people, you need a real MTA — Postfix, 
 a hosted provider. Tinpost is for the part of the work where you specifically do not
 want that.
 
+Tinpost is for **authorised testing in environments you control** — your own machines
+and lab networks, or a client's systems where you have permission to do the work.
+[SECURITY.md](SECURITY.md) says what that means, what Tinpost deliberately does not
+protect, and how to report a vulnerability.
+
 ## Features
 
 - **Mail sink** — accepts mail for any domain over SMTP and stores it instead of
@@ -694,7 +699,8 @@ Within that model, the reader is protected from the mail:
   message cross the network unencrypted — keep the gateway on the lab network
 
 Do not put real credentials or real personal data into it, and do not expose it to an
-untrusted network.
+untrusted network. [SECURITY.md](SECURITY.md) covers intended use, what is in and out
+of scope for a vulnerability report, and how to send one privately.
 
 ## Development
 
@@ -712,4 +718,8 @@ and [CHANGELOG.md](CHANGELOG.md) for what has changed.
 
 ## Licence
 
-MIT
+[MIT](LICENSE) — use it, change it, ship it, with no warranty and no liability.
+
+The licence grants permission; it does not describe what Tinpost is built for or what
+it deliberately leaves unprotected. [SECURITY.md](SECURITY.md) does both, and is worth
+reading before you point it at anything.
