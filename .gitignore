@@ -7,3 +7,9 @@ data/
 *.db-wal
 *.db-shm
 blobs/
+
+# Logo working files: the supplied sheet and every crop and resize taken from it.
+# Kept on disk so the marks can be regenerated, never pushed. What the project
+# actually needs is committed: the lockups in docs/brand/ that the README shows,
+# and the icons in src/web/public/ that the server reads at startup.
+brand-source/
