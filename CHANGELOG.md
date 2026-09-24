@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.6 — 24 September 2026
+
+- Changed: **the README states the authorised-use position in full**, under *What it is
+  not for*, rather than linking to it. Someone deciding whether to use Tinpost for a
+  phishing exercise should not have to click through to learn that deceiving people who
+  have not agreed to be tested is neither intended nor legal. `SECURITY.md` keeps the
+  longer version.
+
 ## v0.7.5 — 24 September 2026
 
 - New: **`SECURITY.md` — security and intended use.** The MIT licence grants permission

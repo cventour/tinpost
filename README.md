@@ -69,10 +69,22 @@ If you need mail that actually reaches people, you need a real MTA — Postfix, 
 a hosted provider. Tinpost is for the part of the work where you specifically do not
 want that.
 
-Tinpost is for **authorised testing in environments you control** — your own machines
-and lab networks, or a client's systems where you have permission to do the work.
-[SECURITY.md](SECURITY.md) says what that means, what Tinpost deliberately does not
-protect, and how to report a vulnerability.
+### Authorised use only
+
+Tinpost is for **testing in environments you control** — your own machines and lab
+networks, or a client's systems where you have permission to do the work.
+
+It accepts mail for any domain, composes messages from any sender address you type,
+and carries real attachments. Those are exactly the features that make it useful for a
+phishing exercise or a gateway test, and exactly the features that make misuse
+possible. **Using it to deceive people who have not agreed to be tested, to impersonate
+a real organisation outside an authorised exercise, or to prepare an attack on systems
+you do not own is not an intended use — and in most countries it is a criminal
+offence.** The MIT licence grants broad permission; it does not grant permission from
+the people on the receiving end, and the law still applies.
+
+[SECURITY.md](SECURITY.md) has the longer version, including what Tinpost deliberately
+does not protect and how to report a vulnerability.
 
 ## Features
 
