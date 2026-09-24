@@ -4,6 +4,25 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.3 — 24 September 2026
+
+- Changed: **the README is written for someone meeting Tinpost for the first time.**
+  It opens with what the project is and why it exists, then what it is for, what it is
+  **not** for, and a one-line summary of each feature — before any command appears.
+
+- New: **"What it is not for".** Tinpost is a sink and must not be used as a production
+  mail server: no MX lookup, no queue, no retry, and a message addressed to a real
+  person goes nowhere. It is not a security boundary either — there are no passwords
+  anywhere — and it should not be put on a network you do not control. The section says
+  so plainly and names what to use instead.
+
+- New: **screenshots.** The inbox, the timeline, the upstream relay, attachment
+  scanning and the logs, in light theme, under *How it looks*.
+
+- Changed: **install instructions are split by platform**, macOS and Windows each with
+  a copy-paste block from installing Node through to a first test message, and the
+  command-line options are now a table with one short sentence each.
+
 ## v0.7.2 — 23 September 2026
 
 - Removed: **the duplicate Compose link in the top bar.** The inbox already carries a

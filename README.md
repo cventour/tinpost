@@ -6,148 +6,169 @@ can open by typing an address. You can reply and compose from the UI, and those
 messages are delivered back into the same instance.
 
 Nothing leaves the machine unless you tell it to. Out of the box there is no outbound
-relay, no DNS lookup and no network call of any kind — which is the point: it lets you
-rehearse realistic email conversations in an isolated environment. The one exception
-is opt-in: an [upstream relay](#upstream-relay) that hands outbound mail to a security
-gateway for scanning and takes it back once scanned.
+relay, no DNS lookup and no network call of any kind. Two integrations are opt-in and
+point at your own network: [ICAP scanning](#attachment-scanning-over-icap), which sends
+every attachment to a virus scanner or content filter for a verdict before the message
+is accepted, and an [upstream relay](#upstream-relay), which hands whole messages to a
+security gateway and takes them back once scanned.
+
+One dependency: Node.js 22.5 or newer. Nothing compiles, there is no database to
+install, and it runs the same on macOS, Windows and Linux.
+
+## Why this was built
+
+Testing anything that touches email is awkward. Real mail servers want DNS, TLS and
+credentials before they will do anything; the hosted testing services want your data
+on someone else's machine; and neither lets you watch a message being refused, scanned
+or rewritten while it happens.
+
+Tinpost exists because a lab needs mail that behaves like the real thing and goes
+nowhere. It was built to rehearse phishing and security-awareness exercises with real
+attachments and HTML bodies, and to sit downstream of a security gateway — OPSWAT
+MetaDefender Email Security, in the lab it grew up in — so that a message can be
+watched all the way through: accepted, handed to the gateway, scanned, returned and
+delivered, with every SMTP command and reply readable afterwards.
+
+It is deliberately open. There are no passwords anywhere, because a lab that makes you
+manage credentials is a lab nobody uses. That is a design decision, not an oversight —
+see [Security](#security).
 
 ## What it is for
 
+- **A simple, flexible mail server for your lab environment** — one command, no DNS,
+  no TLS and no credentials to arrange before mail starts flowing
 - Phishing and security-awareness exercises, with real attachments and HTML bodies
 - Incident-response and forensics training, where `.eml` files and full headers matter
 - Testing an application's signup, password-reset or notification flows
+- Exercising a security gateway or ICAP scanner, and watching what it did to a message
 - Demos that need believable mail without touching anyone's real inbox
 
-## Requirements
+## What it is not for
 
-Node.js 22.5 or newer; Node 24 LTS or later is recommended. **That is the whole
-list.** There is no database to install, nothing that compiles, and no native module
-anywhere in the dependency tree — mail storage uses Node's built-in SQLite plus
-ordinary files on disk. Tinpost never shells out to another program, so there is no
-`sudo`, no service manager and no container it depends on. It runs the same on macOS,
-Windows and Linux.
+**Tinpost is not a production mail server, and must not be used as one.** It is a
+sink: mail comes in and stops there.
 
-If you do not have Node yet:
+- **It never delivers real email.** There is no MX lookup, no queue and no retry. A
+  message addressed to a real person at a real domain is stored in a local mailbox and
+  goes nowhere. The one way anything leaves is the opt-in
+  [upstream relay](#upstream-relay), and that hands mail to one server you name —
+  intended to be a scanning gateway on your own network, which sends it straight back.
+- **It is not a security boundary.** There are no passwords anywhere — anyone who can
+  reach the web port reads every mailbox, changes every setting and deletes all the
+  mail. That is deliberate, and it is why it binds to loopback by default.
+- **It is not durable storage.** The mail store is meant to be thrown away between
+  exercises — the admin page has a Purge control that deletes every message, and
+  there are no backups.
+- **Do not put it on the internet**, or on any network you do not control. Use
+  `--host 0.0.0.0` only on an isolated lab network.
 
-| | |
-|---|---|
-| macOS | `brew install node` — or the installer from [nodejs.org](https://nodejs.org) |
-| Windows | `winget install OpenJS.NodeJS.LTS` — or the `.msi` from [nodejs.org](https://nodejs.org) |
-| Debian / Ubuntu | `curl -fsSL https://deb.nodesource.com/setup_24.x \| sudo -E bash - && sudo apt install nodejs` |
+If you need mail that actually reaches people, you need a real MTA — Postfix, Exim, or
+a hosted provider. Tinpost is for the part of the work where you specifically do not
+want that.
 
-Check it with `node --version`. Anything below 22.5 has no built-in SQLite, and
-Tinpost says so plainly rather than failing with a stack trace.
+## Features
+
+- **Mail sink** — accepts mail for any domain over SMTP and stores it instead of
+  forwarding it, so nothing reaches a real inbox.
+- **Webmail** — open any mailbox by typing its address, with no password, and read,
+  reply, compose and download `.eml` files from the browser.
+- **Timeline** — every message and connection the instance has seen, across all
+  mailboxes, on one page with an activity chart, filters and search.
+- **Live view of connections** — a Logs page that tails the server's own output as it
+  is written, and can record the full SMTP conversation, every `C:` and `S:` line,
+  tagged per connection.
+- **ICAP support** — hand every attachment to a virus scanner or content filter and
+  accept the message only if it comes back approved.
+- **Upstream relay** — route mail crossing your local domain boundary through a
+  security gateway, which scans it and sends it back for delivery.
+- **Accepts any credentials** — advertises `AUTH` and accepts any username, password
+  or token, so clients that refuse to talk to a server without it still connect.
+- **Domain policy** — accept every domain as a catch-all, or restrict to an allowlist
+  and watch unlisted recipients get a realistic `550`.
+- **Realistic refusals** — size, recipient and connection limits that answer with the
+  same SMTP codes a real MTA would, so a client under test sees a real failure.
+- **Safe by construction** — HTML bodies render in a sandboxed frame with no scripts
+  and no network access, and attachments always download rather than execute.
 
 ## Installing
 
-Tinpost is not published to the npm registry, so install it from the repository.
-The same three commands work on all three platforms — use PowerShell on Windows,
-any shell elsewhere:
+Tinpost is not published to the npm registry. Install it from the repository.
+
+### macOS
 
 ```bash
+brew install node          # if you do not have Node 22.5+ already
 git clone https://github.com/cventour/tinpost.git
 cd tinpost
 npm ci
-```
-
-`npm ci` downloads pure JavaScript only; no build step runs and no compiler is
-needed. Then start it:
-
-```bash
 npm start
 ```
 
-To get a `tinpost` command on your PATH instead, install the checkout globally:
+### Windows (PowerShell)
 
-```bash
-npm install -g .
-tinpost serve
-```
-
-On Windows that creates `tinpost.cmd` in your npm prefix, so `tinpost serve` works
-from PowerShell and from `cmd.exe` alike.
-
-## Quick start
-
-```bash
+```powershell
+winget install OpenJS.NodeJS.LTS    # if you do not have Node 22.5+ already
+git clone https://github.com/cventour/tinpost.git
+cd tinpost
+npm ci
 npm start
 ```
 
-That prints the URLs:
+Either way it prints where it is listening:
 
 ```
   Webmail   http://127.0.0.1:8025
   Admin     http://127.0.0.1:8025/admin   (no password)
   SMTP      127.0.0.1:2525   (any credentials, no TLS)
-  Data      /home/you/.tinpost
 ```
 
 Open the webmail URL, type any address — `alice@lab.local` will do — and you are in
-that mailbox. Send something to it:
+that mailbox. Stop it with `Ctrl+C`.
 
-PowerShell, on any platform:
+To get a `tinpost` command on your PATH instead of `npm start`, run `npm install -g .`
+from the checkout. On Windows that creates `tinpost.cmd`, so `tinpost serve` works in
+PowerShell and `cmd.exe` alike.
+
+### Send it a test message
+
+macOS or Linux:
+
+```bash
+node -e "const n=require('nodemailer');n.createTransport({host:'127.0.0.1',port:2525}).sendMail({from:'bob@corp.test',to:'alice@lab.local',subject:'Hello',text:'First message.'})"
+```
+
+Windows (PowerShell) — works on macOS too:
 
 ```powershell
 $smtp = [System.Net.Mail.SmtpClient]::new('127.0.0.1', 2525)
-$smtp.Send('bob@corp.test', 'alice@lab.local', 'Hello', 'A first message.')
-```
-
-Or with `swaks`, if you have it:
-
-```bash
-swaks --to alice@lab.local --from bob@corp.test --server 127.0.0.1:2525 --body "hello"
+$smtp.Send('bob@corp.test', 'alice@lab.local', 'Hello', 'First message.')
 ```
 
 It appears in the open page within a second, without a reload.
 
 ## Running it
 
-Every example assumes you are in the directory you cloned into. Stop it with
-`Ctrl+C`. If you installed globally with `npm install -g .`, write `tinpost serve`
-wherever these say `node src/cli.js serve`.
+Stop it with `Ctrl+C`. If you installed globally, write `tinpost serve` wherever these
+say `node src/cli.js serve`.
 
 ### macOS and Linux
 
 ```bash
-# Defaults: SMTP on 2525, web on 8025, loopback only
-npm start
-
-# The same thing, when you want to pass options
-node src/cli.js serve
-
-# Choose the ports
-node src/cli.js serve --smtp-port 2525 --http-port 8025
-
-# The standard SMTP port. Needs root on macOS and Linux — see below
+npm start                                              # defaults: SMTP 2525, web 8025
+node src/cli.js serve --smtp-port 2525 --http-port 8025  # choose the ports
+node src/cli.js serve --host 0.0.0.0                   # reachable from other machines
+node src/cli.js serve --data-dir ~/labmail             # keep the mail somewhere specific
 sudo node src/cli.js serve --smtp-port 25 --data-dir /usr/local/var/tinpost
-
-# Reachable from other machines on an isolated lab network
-node src/cli.js serve --host 0.0.0.0
-
-# Keep the mail somewhere of your choosing
-node src/cli.js serve --data-dir ~/labmail
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-# Defaults: SMTP on 2525, web on 8025, loopback only
-npm start
-
-# The same thing, when you want to pass options
-node src\cli.js serve
-
-# Choose the ports
-node src\cli.js serve --smtp-port 2525 --http-port 8025
-
-# The standard SMTP port. No elevation needed on Windows — see below
-node src\cli.js serve --smtp-port 25
-
-# Reachable from other machines on an isolated lab network
-node src\cli.js serve --host 0.0.0.0
-
-# Keep the mail somewhere of your choosing
-node src\cli.js serve --data-dir C:\labmail
+npm start                                                 # defaults: SMTP 2525, web 8025
+node src\cli.js serve --smtp-port 2525 --http-port 8025    # choose the ports
+node src\cli.js serve --host 0.0.0.0                      # reachable from other machines
+node src\cli.js serve --data-dir C:\labmail               # keep the mail somewhere specific
+node src\cli.js serve --smtp-port 25                      # no elevation needed on Windows
 ```
 
 Exposing it with `--host 0.0.0.0` on Windows also needs a firewall rule — see
@@ -165,25 +186,79 @@ systems, not a choice Tinpost makes, and it is why the default is 2525.
 | Windows | ordinary user | ordinary user — Windows does not reserve low ports |
 
 Run as root with no port flag at all and Tinpost takes 25 by itself, because running
-as root is read as intent to be a real mail server:
-
-```bash
-sudo node src/cli.js serve --data-dir /usr/local/var/tinpost
-```
-
-Run as an ordinary user on macOS or Linux and it falls back to 2525 and says why, on
-the entry page and in the log. It never refuses to start over this.
+as root is read as intent to be a real mail server. Run as an ordinary user on macOS
+or Linux and it falls back to 2525 and says why, on the entry page and in the log. It
+never refuses to start over this.
 
 **Pass `--data-dir` whenever you use `sudo`.** Under `sudo` the default location
 resolves against root's environment rather than yours, so a sudo run and an ordinary
-run would otherwise keep two separate mail stores and each would look empty to the
-other. Anything written under `sudo` also belongs to root, so a later ordinary run
-cannot delete it — the admin page says so plainly if it happens, but naming the
-directory once avoids the whole business.
+run would otherwise keep two separate mail stores, each looking empty to the other.
+Anything written under `sudo` also belongs to root, so a later ordinary run cannot
+delete it.
 
 On Linux there is a third way, and it is the one the reference deployment uses: leave
 the process unprivileged and grant the one capability it needs. See the systemd unit
 under [Keeping it running](#linux--systemd).
+
+## Parameters
+
+```
+tinpost serve [options]
+```
+
+| Option | What it does |
+|---|---|
+| `--http-port <n>` | Port for the web interface and admin page. Default 8025. |
+| `--smtp-port <n>` | Port senders connect to. Default 2525. |
+| `--host <addr>` | Address to bind. Default `127.0.0.1`; use `0.0.0.0` to reach it from other machines. |
+| `--data-dir <path>` | Where the database and stored mail live. |
+| `--max-size <bytes>` | Largest message accepted. Default 25 MB. |
+| `-h`, `--help` | Show the options and exit. |
+| `-v`, `--version` | Show the version and exit. |
+
+Each has an environment variable equivalent: `TINPOST_HTTP_PORT`,
+`TINPOST_SMTP_PORT`, `TINPOST_HOST`, `TINPOST_DATA_DIR`, `TINPOST_MAX_SIZE`.
+
+Most settings — limits, ports, server name, scanning and relay — can also be changed
+on the admin page. A value given on the command line always wins.
+
+**Port 25 needs root on macOS and Linux**, because those systems reserve ports below
+1024. Windows does not reserve them, so an ordinary account binds 25 there with no
+elevation. See [Port 25](#port-25-needs-root--except-on-windows).
+
+## How it looks
+
+**Inbox** — open a mailbox by typing its address. New mail arrives without a reload.
+
+![The Tinpost inbox, showing six messages in the mailbox alice@lab.local](docs/images/inbox.png)
+
+**Timeline** — every message and connection across all mailboxes, with an activity
+chart, one filter per outcome, and search. Click a message to open it.
+
+![The Tinpost timeline, showing delivered, returned, refused and connection events with an activity chart above](docs/images/timeline.png)
+
+**Upstream relay** — hand mail crossing your domain boundary to a security gateway,
+which scans it and sends it back.
+
+![The upstream relay admin page, configured to relay through a gateway](docs/images/admin-relay.png)
+
+**Attachment scanning** — send every attachment to an ICAP server and accept the
+message only if it comes back approved. Configurable per domain as well as globally.
+
+![The attachment scanning admin page, configured to send attachments to an ICAP server for a verdict](docs/images/admin-scanning.png)
+
+**Logs** — the server's own output, live, with the full SMTP conversation recorded per
+connection. What the sender said and what Tinpost answered are toned differently.
+
+![The Tinpost logs page showing an SMTP conversation with client and server lines in different tones](docs/images/admin-logs.png)
+
+## What changed
+
+Every release is written up in plain language in [CHANGELOG.md](CHANGELOG.md), newest
+first — what changed for someone running a lab, and what a fix looked like from their
+side. Versioning follows [semantic versioning](VERSIONING.md).
+
+---
 
 ## Sending mail to it
 
@@ -565,34 +640,6 @@ Anything that sends straight to Tinpost's SMTP port from a domain that is not lo
 into a local one goes through the gateway as well. A product whose notifications come
 from a local address — `mdcore@ops.lab` writing to `admin@ops.lab` — is internal mail
 and is delivered directly.
-
-## Options
-
-```
-tinpost serve [options]
-
-  --smtp-port <n>        SMTP listen port (default 2525)
-  --http-port <n>        Web listen port (default 8025)
-  --host <addr>          Address to bind (default 127.0.0.1)
-  --data-dir <path>      Where the database and stored files live
-  --max-size <bytes>     Largest accepted message (default 25 MB)
-```
-
-Each has an environment-variable equivalent: `TINPOST_SMTP_PORT`,
-`TINPOST_HTTP_PORT`, `TINPOST_HOST`, `TINPOST_DATA_DIR`,
-`TINPOST_MAX_SIZE`.
-
-The limits, the server name and the ports can also be set from the admin page. The
-limits apply to the next connection; the ports apply at the next start, because a
-listening port cannot move without dropping the page you are on. A port given on the
-command line overrides what is saved.
-
-### Port 25
-
-A port you choose yourself — by flag, or on the admin page — always wins over the
-default and is never warned about. For which platforms need elevation to take port 25,
-and the `sudo` caveat that comes with it, see
-[Port 25 needs root](#port-25-needs-root--except-on-windows).
 
 ## Where the data goes
 
