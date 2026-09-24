@@ -4,6 +4,18 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.4 — 24 September 2026
+
+- New: **Tinpost has a logo.** An open tin with a letter in it — the name, drawn. It
+  sits to the left of the wordmark in the top bar and is now the favicon and the
+  Apple touch icon, replacing the drawn envelope that stood in for it. The mark
+  follows the theme: it carries the light accent on a light page and the lighter dark
+  accent on a dark one, so it never sits a shade off from the "post" beside it.
+
+- New: **the README opens with the horizontal lockup**, with a dark-mode variant so
+  the near-black "Tin" does not disappear against GitHub's dark theme. The brand
+  files live in `docs/brand/`, background removed, as transparent PNGs.
+
 ## v0.7.3 — 24 September 2026
 
 - Changed: **the README is written for someone meeting Tinpost for the first time.**

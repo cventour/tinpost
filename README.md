@@ -1,4 +1,7 @@
-# Tinpost
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/tinpost-lockup-dark.png">
+  <img src="docs/brand/tinpost-lockup.png" alt="Tinpost" width="380">
+</picture>
 
 A self-contained mail server for lab environments. It listens on SMTP, accepts mail
 for any domain you point at it, and shows every mailbox in a webmail UI that anyone

@@ -56,6 +56,10 @@ export async function createWebServer({
   const assets = {
     '/static/app.css': ['text/css; charset=utf-8', readFileSync(join(here, 'public', 'app.css'))],
     '/static/app.js': ['text/javascript; charset=utf-8', readFileSync(join(here, 'public', 'app.js'))],
+    '/static/icon-32.png': ['image/png', readFileSync(join(here, 'public', 'icon-32.png'))],
+    '/static/icon-64.png': ['image/png', readFileSync(join(here, 'public', 'icon-64.png'))],
+    '/static/icon-64-dark.png': ['image/png', readFileSync(join(here, 'public', 'icon-64-dark.png'))],
+    '/static/icon-180.png': ['image/png', readFileSync(join(here, 'public', 'icon-180.png'))],
   };
   for (const [url, [type, body]] of Object.entries(assets)) {
     app.get(url, (req, reply) => reply.type(type).header('cache-control', 'no-cache').send(body));

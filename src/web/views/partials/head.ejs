@@ -7,8 +7,8 @@
 <meta name="color-scheme" content="light dark">
 <title><%= typeof title !== 'undefined' ? title : 'Tinpost' %></title>
 <link rel="stylesheet" href="/static/app.css">
-<%# Drawn, not a font glyph: a text-based favicon renders differently on every platform. %>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232b5fd9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='2.5' y='5' width='19' height='14' rx='2'/><path d='M3 7l8.1 5.4a1.6 1.6 0 0 0 1.8 0L21 7'/></svg>">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png">
 <script>
   // Applied before first paint so a chosen theme never flashes the other one.
   try {
@@ -23,7 +23,9 @@
   <%# The version rides beside the wordmark, outside the link, so the product still
       reads and copies as "Tinpost" on its own. %>
   <div class="brand-wrap">
-    <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>">Tin<span class="brand-dot" aria-hidden="true">·</span><span class="brand-tail">post</span></a>
+    <a class="brand" href="<%= locals.addr ? '/mail' : '/' %>"><img class="brand-mark mark-light" src="/static/icon-64.png" alt="" width="22" height="22"
+      ><img class="brand-mark mark-dark" src="/static/icon-64-dark.png" alt="" width="22" height="22"
+      >Tin<span class="brand-dot" aria-hidden="true">·</span><span class="brand-tail">post</span></a>
     <span class="brand-version" title="Tinpost version <%= version %>">v<%= version %></span>
   </div>
   <nav>

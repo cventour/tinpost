@@ -150,9 +150,23 @@ main.wide { max-width: 1040px; }
    rather than floating against its cap height. */
 .brand-wrap { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
 .brand {
+  display: inline-flex; align-items: center;
   font-weight: 700; text-decoration: none; color: var(--ink);
   font-size: 19.5px; line-height: 1; letter-spacing: -0.4px;
 }
+/* Served at 64px and drawn at 22 so it stays crisp on a retina screen. The
+   wordmark already says the name, so the mark is decorative to a screen reader. */
+.brand-mark { width: 22px; height: 22px; flex: none; margin-right: 7px; }
+/* Two files rather than a filter, so the mark carries the theme's own accent —
+   the same swap the theme button makes with its sun and moon. */
+.mark-light { display: block; }
+.mark-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mark-light { display: none; }
+  :root:not([data-theme="light"]) .mark-dark { display: block; }
+}
+:root[data-theme="dark"] .mark-light { display: none; }
+:root[data-theme="dark"] .mark-dark { display: block; }
 .brand-version {
   font-size: 11px; line-height: 1; color: var(--ink-dim);
   font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap;
