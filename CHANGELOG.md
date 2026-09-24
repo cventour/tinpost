@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.7.8 — 24 September 2026
+
+- Fixed: **the `tinpost` command would not have been installed from the registry.** The
+  `bin` path was written `./src/cli.js`; npm rejects the leading `./` and strips the
+  entry entirely when publishing, so `npx tinpost` and a global install would both have
+  produced a package with no command in it. A local `npm pack` normalises the path and
+  hides the problem, which is why it only surfaced on the first publish attempt.
+
 ## v0.7.7 — 24 September 2026
 
 - Changed: **package metadata is ready for the npm registry.** `package.json` now
