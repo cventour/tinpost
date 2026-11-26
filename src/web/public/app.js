@@ -141,7 +141,54 @@
       .catch(function () { pre.textContent = 'Could not load the message source.'; });
   }
 
-  /* Remember the reader's last choice of HTML vs plain text vs source. */
+  /* ---------- inspect ---------- */
+
+  /* Clipboard: navigator.clipboard needs a secure context, and a lab server is often
+     plain HTTP on a LAN, so fall back to a hidden textarea and execCommand. Values are
+     only ever put in as text (value / textContent), never parsed as HTML. */
+  function copyText(text) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+    if (navigator.clipboard && window.isSecureContext !== false) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return fallback(); });
+    }
+    return Promise.resolve(fallback());
+  }
+
+  function flash(button, label) {
+    var old = button.textContent;
+    button.textContent = label;
+    setTimeout(function () { button.textContent = old; }, 1500);
+  }
+
+  function initInspect(root) {
+    root.querySelectorAll('[data-copy]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        copyText(b.getAttribute('data-copy')).then(function (ok) { flash(b, ok ? 'Copied' : 'Copy failed'); });
+      });
+    });
+    root.querySelectorAll('[data-copy-iocs]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        /* The text is built once, on the server, from the same list the page shows. */
+        var text = b.getAttribute('data-ioc-text') || '';
+        if (!text) { flash(b, 'No IOCs'); return; }
+        copyText(text).then(function (ok) { flash(b, ok ? 'Copied' : 'Copy failed'); });
+      });
+    });
+  }
+
+  /* Remember the reader's last choice of HTML vs plain text vs source vs inspect. */
   function initViewTabs(tabs) {
     var KEY = 'mb.view';
     try {
@@ -698,6 +745,9 @@
 
     var tabs = document.querySelector('[data-view-tabs]');
     if (tabs) initViewTabs(tabs);
+
+    var inspect = document.querySelector('[data-inspect]');
+    if (inspect) initInspect(inspect);
 
     var logView = document.querySelector('[data-log-view]');
     if (logView) initLogViewer(logView);

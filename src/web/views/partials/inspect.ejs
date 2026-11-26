@@ -1,0 +1,102 @@
+<%# Every value below is message data and is written escaped. Nothing from a message is ever output raw. %>
+<% const total = inspection.summary; %>
+<div class="inspect" data-inspect>
+  <p class="insp-summary">
+    <b class="sev-count sev-high"><%= total.high %> high</b> &middot;
+    <b class="sev-count sev-notice"><%= total.notice %> notice</b> &middot;
+    <span><%= total.hashed %> attachment<%= total.hashed === 1 ? '' : 's' %> hashed</span> &middot;
+    <span>no network lookups made</span>
+  </p>
+  <% inspection.notes.forEach(function (n) { %><p class="hint"><%= n %></p><% }) %>
+
+  <section class="insp-sec">
+    <h2>Sender</h2>
+    <% if (!inspection.sender.length) { %><p class="insp-empty">Nothing to inspect: the sender could not be read.</p><% } else { %>
+    <div class="insp-wrap"><table class="insp-table">
+      <thead><tr><th>Field</th><th>Value</th><th>Finding</th></tr></thead>
+      <tbody>
+      <% inspection.sender.forEach(function (r) { %>
+        <tr>
+          <th scope="row"><%= r.field %></th>
+          <td class="mono"><%= r.value %></td>
+          <td><%- include('inspect-findings', { list: r.findings }) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <section class="insp-sec">
+    <h2>Route</h2>
+    <% if (!inspection.route.length) { %><p class="insp-empty">Nothing to inspect: the message has no Received headers and Tinpost holds no record of how it arrived.</p><% } else { %>
+    <div class="insp-wrap"><table class="insp-table">
+      <thead><tr><th>#</th><th>Received from &rarr; by</th><th>Time UTC</th><th>Delay</th><th>Finding</th></tr></thead>
+      <tbody>
+      <% inspection.route.forEach(function (r) { %>
+        <tr>
+          <td class="num"><%= r.n %></td>
+          <td class="mono"><%= r.from %> &rarr; <%= r.by %><%= r.with ? ' (' + r.with + ')' : '' %>
+            <span class="tag"><%= r.source %></span></td>
+          <td class="mono"><%= r.time || 'not stated' %></td>
+          <td class="mono"><%= r.delay || '' %></td>
+          <td><%- include('inspect-findings', { list: r.findings }) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <section class="insp-sec">
+    <h2>Links</h2>
+    <% if (!inspection.links.length) { %>
+      <p class="insp-empty">Nothing to inspect: <%= m.hasHtml ? 'the HTML part has no links.' : 'the message has no HTML part.' %></p>
+    <% } else { %>
+    <div class="insp-wrap"><table class="insp-table">
+      <thead><tr><th>Shown text</th><th>Real target</th><th>Finding</th></tr></thead>
+      <tbody>
+      <% inspection.links.forEach(function (r) { %>
+        <tr>
+          <td class="wrap"><%= r.text || '(no text)' %></td>
+          <td class="mono wrap"><%= r.target %><% if (r.hostDecoded) { %> <span class="dim">(<%= r.hostDecoded %>)</span><% } %></td>
+          <td><%- include('inspect-findings', { list: r.findings }) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <section class="insp-sec">
+    <h2>Attachments</h2>
+    <% if (!inspection.attachments.length) { %><p class="insp-empty">Nothing to inspect: the message has no attachments.</p><% } else { %>
+    <div class="insp-wrap"><table class="insp-table">
+      <thead><tr><th>Name</th><th>Declared / detected type</th><th>SHA-256</th><th>Finding</th></tr></thead>
+      <tbody>
+      <% inspection.attachments.forEach(function (a) { %>
+        <tr>
+          <td class="wrap"><%= a.name %><% if (a.inline) { %> <span class="tag">inline</span><% } %><br><span class="dim"><%= fmtBytes(a.size) %></span></td>
+          <td><span class="mono"><%= a.declared %></span><br><span class="dim"><%= a.detected %></span></td>
+          <td class="hashcell">
+            <span class="mono hash"><%= a.sha256 %></span>
+            <button type="button" class="tiny ghost" data-copy="<%= a.sha256 %>">Copy</button>
+            <% if (a.sha1) { %><br><span class="dim">SHA-1</span> <span class="mono hash"><%= a.sha1 %></span><% } %>
+            <% if (a.md5) { %><br><span class="dim">MD5</span> <span class="mono hash"><%= a.md5 %></span><% } %>
+          </td>
+          <td><%- include('inspect-findings', { list: a.findings }) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <div class="insp-foot">
+    <span class="hint">All checks run on the stored message. Nothing is looked up online. These are training heuristics, not a verdict.</span>
+    <span class="insp-actions">
+      <button type="button" class="small ghost" data-copy-iocs data-ioc-text="<%= iocText %>">Copy IOCs</button>
+      <a class="btn small ghost" href="/mail/<%= m.id %>/inspect.json?download">Export .json</a>
+    </span>
+  </div>
+</div>

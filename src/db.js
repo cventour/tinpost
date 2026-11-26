@@ -479,6 +479,11 @@ export class Db {
     return Number(info.lastInsertRowid);
   }
 
+  /** What the timeline recorded about one stored message, oldest first. Read-only. */
+  getEventsForMessage(messageId) {
+    return this.#db.prepare('SELECT * FROM events WHERE message_id = ? ORDER BY id').all(messageId);
+  }
+
   getEvent(id) {
     return this.#db.prepare('SELECT * FROM events WHERE id = ?').get(id) ?? null;
   }
