@@ -753,7 +753,7 @@ of scope for a vulnerability report, and how to send one privately.
 
 ```bash
 npm install
-npm test          # 293 tests, no network access required
+npm test          # 297 tests, no network access required
 npm start         # runs the server from source
 ```
 

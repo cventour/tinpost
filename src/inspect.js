@@ -227,7 +227,8 @@ function buildSender(headers, { fromAddr, fromName }) {
       const dom = domainOfAddr(a.address);
       if (!fromDomain || !dom || dom === fromDomain) continue;
       // Labels are compared exactly: corp.test and evilcorp.test are not a subdomain pair.
-      if (dom.endsWith('.' + fromDomain) || fromDomain.endsWith('.' + dom)) subdomain ??= dom;
+      // The shorter name of the pair must itself contain a dot, so a bare TLD ("test") is not a parent.
+      if ((dom.endsWith('.' + fromDomain) && fromDomain.includes('.')) || (fromDomain.endsWith('.' + dom) && dom.includes('.'))) subdomain ??= dom;
       else other ??= dom;
     }
     if (other) {
@@ -570,6 +571,7 @@ export function extractLinks(html, { max = MAX_LINKS } = {}) {
   const src = String(html ?? '').slice(0, MAX_HTML_CHARS);
   const out = [];
   let truncated = false;
+  let skipped = 0;
   let i = 0;
   let scanned = 0;
   while (i < src.length && scanned < MAX_SCAN_BUDGET) {
@@ -605,6 +607,7 @@ export function extractLinks(html, { max = MAX_LINKS } = {}) {
     if (j >= limit) {
       // No end to this tag within reach. Skip past what was scanned instead of
       // rescanning it from the next '<a', which would make a run of them quadratic.
+      skipped++;
       i = limit;
       continue;
     }
@@ -625,7 +628,7 @@ export function extractLinks(html, { max = MAX_LINKS } = {}) {
     }
     out.push({ rawHref: href, text });
   }
-  return { links: out, truncated };
+  return { links: out, truncated, skipped };
 }
 
 /** Make a raw href into what a browser would act on: entities, stray whitespace. */
@@ -691,7 +694,7 @@ export function classifyLink(rawHref, text) {
         findings.push(
           finding('notice', 'ip_host', `The link goes to an IP address, not a name (${vis(host, 100)}${norm && norm !== host ? ', which is ' + vis(norm, 100) : ''}).`),
         );
-        ioc.ip = norm || host;
+        ioc.ip = (norm || host).replace(/^\[|\]$/g, '');
       } else {
         findings.push(...domainFindings(host, { where: 'link host' }));
         ioc.domain = host;
@@ -723,8 +726,9 @@ export function classifyLink(rawHref, text) {
 
 function buildLinks(html) {
   if (!html) return { rows: [], notes: [], iocs: [] };
-  const { links, truncated } = extractLinks(html);
+  const { links, truncated, skipped } = extractLinks(html);
   const notes = truncated ? [`Links: only the first ${MAX_LINKS} links were analysed; the message has more.`] : [];
+  if (skipped) notes.push(`Links: ${skipped} tag${skipped === 1 ? '' : 's'} too long to read ${skipped === 1 ? 'was' : 'were'} skipped.`);
   const rows = [];
   const iocs = [];
   for (const l of links) {
@@ -795,7 +799,7 @@ function zipEntries(buf) {
 /**
  * "MZ" alone is two letters that plain text can start with. A file counts as a Windows
  * executable when a PE signature sits where the DOS header says it should, or when the
- * bytes after "MZ" (up to 64) include a binary one. "MZ" followed only by readable
+ * bytes after "MZ" (up to 64) include a control byte (0-8, 14-31); bytes above 126 are not counted, because text in UTF-8 has them. "MZ" followed only by readable
  * text, or nothing, is treated as text.
  */
 function isDosExecutable(h) {
@@ -807,7 +811,7 @@ function isDosExecutable(h) {
   const n = Math.min(h.length, 64);
   for (let i = 2; i < n; i++) {
     const b = h[i];
-    if (b < 9 || (b > 13 && b < 32) || b > 126) return true;
+    if (b < 9 || (b > 13 && b < 32)) return true;
   }
   return false;
 }

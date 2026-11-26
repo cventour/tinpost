@@ -522,3 +522,39 @@ test('IOCs set aside the lab itself: loopback, lab.local and the configured doma
   assert.equal(r.links.length, 4);
   assert.ok(!iocsToText(r.iocs).includes('lab.local'));
 });
+
+// ------------------------------------------------------------- review round 2
+
+test('tags too long to read are counted and reported, not dropped silently', () => {
+  const long = `<a href="https://a.test/${'x'.repeat(140000)}">big</a>`;
+  const ok = '<a href="https://ok.test/">fine</a>';
+  const { links, skipped } = extractLinks(ok + long + ok);
+  assert.ok(skipped >= 1);
+  assert.ok(links.length >= 1);
+  const r = run({ html: '<a href="' + 'y'.repeat(200000) + '"x' + ok });
+  assert.ok(r.notes.some((n) => /too long to read/.test(n)), r.notes.join('|'));
+  assert.equal(run({ html: ok }).notes.length, 0);
+});
+
+test('a bracketed IPv6 loopback link is set aside as ::1, without brackets', () => {
+  const r = run({ html: '<a href="http://[::1]/q">x</a><a href="http://[2001:db8::1]/q">y</a>' });
+  assert.ok(!r.iocs.ips.some((a) => a.includes('[')));
+  assert.ok(!r.iocs.ips.includes('::1'));
+  assert.ok(r.iocsExcluded.ips.includes('::1'));
+  assert.ok(r.iocs.ips.includes('2001:db8::1'));
+});
+
+test('a bare TLD is not a parent domain for the Reply-To subdomain rule', () => {
+  const run2 = (from, reply) => run({ rawHead: head([`From: b@${from}`, `Reply-To: ${reply}`]), from: { address: `b@${from}`, name: null } });
+  assert.equal(find(run2('corp.test', 'x@test').sender, 'reply_to_mismatch').severity, 'high');
+  assert.equal(find(run2('test', 'x@corp.test').sender, 'reply_to_mismatch').severity, 'high');
+  assert.equal(find(run2('corp.test', 'x@mail.corp.test').sender, 'reply_to_subdomain').severity, 'notice');
+});
+
+test('MZ followed by UTF-8 text is text, not an executable', () => {
+  assert.equal(detectType(Buffer.from('MZ café file\n')).cat, 'text');
+  const r = run({ attachments: [att('notes.txt', Buffer.from('MZ café file\n'))] });
+  assert.equal(r.summary.high, 0);
+  assert.equal(detectType(Buffer.from('MZ\x90\x00\x03\x00', 'latin1')).cat, 'pe');
+  assert.equal(detectType(Buffer.from('MZ\x01')).cat, 'pe');
+});
