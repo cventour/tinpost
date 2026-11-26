@@ -16,7 +16,7 @@ function run(over = {}) {
     from: { address: 'bob@corp.test', name: null },
     html: null,
     attachments: [],
-    message: { origin: 'smtp', date_utc: '2026-11-26T10:00:00Z' },
+    message: { origin: 'smtp', received_at: '2026-11-26T10:00:00Z', date_utc: '1999-01-01T00:00:00Z' },
     events: [],
     ...over,
   });
@@ -41,6 +41,8 @@ function zip(names, { encrypted = false } = {}) {
   });
   return Buffer.concat([...locals, ...centrals]);
 }
+
+const MZ_BYTES = Buffer.from('MZ\x90\x00\x03\x00');
 
 const att = (filename, headBytes, extra = {}) => ({
   id: 1, filename, contentType: 'application/octet-stream', size: headBytes.length, sha256: 'a'.repeat(64),
@@ -111,7 +113,7 @@ test('with no Return-Path the envelope sender is reported as not recorded, as in
 
 test('a display name carrying a different address is flagged', () => {
   const r = run({ from: { address: 'x@evil.test', name: 'support@paypal.com' } });
-  assert.ok(find(r.sender, 'display_name_address'));
+  assert.equal(find(r.sender, 'display_name_address').severity, 'high');
   const same = run({ from: { address: 'x@evil.test', name: 'x@evil.test' } });
   assert.equal(find(same.sender, 'display_name_address'), undefined);
 });
@@ -309,10 +311,10 @@ test('a .pdf that starts with MZ is a high type mismatch', () => {
 
 test('a double extension is high, including padding and right-to-left tricks', () => {
   for (const name of ['x.pdf.exe', 'x.pdf      .exe', 'x.doc.scr   ', 'report.docx.js']) {
-    const r = run({ attachments: [att(name, Buffer.from('MZ'))] });
+    const r = run({ attachments: [att(name, MZ_BYTES)] });
     assert.equal(find(r.attachments, 'double_extension')?.severity, 'high', name);
   }
-  const rtl = run({ attachments: [att('invoice‮gpj.exe', Buffer.from('MZ'))] });
+  const rtl = run({ attachments: [att('invoice‮gpj.exe', MZ_BYTES)] });
   assert.equal(find(rtl.attachments, 'rtl_override').severity, 'high');
   assert.match(rtl.attachments[0].name, /\[U\+202E\]/, 'the control character is made visible');
   const fine = run({ attachments: [att('report.final.v2.txt', Buffer.from('plain text'))] });
@@ -320,10 +322,41 @@ test('a double extension is high, including padding and right-to-left tricks', (
   assert.equal(fine.attachments[0].findings.length, 0);
 });
 
-test('an honest executable is a notice, not a mismatch', () => {
-  const r = run({ attachments: [att('setup.exe', Buffer.from('MZ'))] });
-  assert.equal(find(r.attachments, 'executable').severity, 'notice');
-  assert.equal(find(r.attachments, 'type_mismatch'), undefined);
+test('executable content is high whatever the name, and an honest .exe is high too', () => {
+  const honest = run({ attachments: [att('setup.exe', MZ_BYTES)] });
+  assert.equal(find(honest.attachments, 'executable').severity, 'high');
+  assert.equal(find(honest.attachments, 'type_mismatch'), undefined);
+  const named = run({ attachments: [att('data.dat', MZ_BYTES)] });
+  assert.equal(find(named.attachments, 'executable').severity, 'high');
+  const asJs = run({ attachments: [att('run.js', MZ_BYTES)] });
+  assert.equal(asJs.summary.high >= 1, true);
+  assert.equal(find(asJs.attachments, 'executable').severity, 'high');
+  for (const content of [Buffer.from('#!/bin/sh\necho hi\n'), Buffer.from('\x7fELF\x02\x01\x01\x00'), Buffer.from('\xcf\xfa\xed\xfe\x07\x00', 'latin1')]) {
+    assert.equal(find(run({ attachments: [att('notes.bin', content)] }).attachments, 'executable').severity, 'high');
+  }
+});
+
+test('extension-only executables and scripts are high even with plain text content', () => {
+  for (const ext of ['exe', 'scr', 'com', 'bat', 'cmd', 'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'hta', 'lnk', 'msi']) {
+    const r = run({ attachments: [att(`thing.${ext}`, Buffer.from('just some readable text\n'))] });
+    assert.equal(r.summary.high >= 1, true, ext);
+    assert.ok(r.attachments[0].findings.some((f) => f.severity === 'high'), ext);
+  }
+  assert.equal(find(run({ attachments: [att('run.js', Buffer.from('alert(1)\n'))] }).attachments, 'executable_extension').severity, 'high');
+  assert.equal(run({ attachments: [att('notes.txt', Buffer.from('alert(1)\n'))] }).summary.high, 0);
+});
+
+test('plain text that starts with MZ is text; a real DOS/PE header is an executable', () => {
+  assert.equal(detectType(Buffer.from('MZ is my favourite file\n')).cat, 'text');
+  assert.equal(detectType(Buffer.from('MZ')).cat, 'text');
+  assert.equal(detectType(Buffer.from('MZ\x90\x00\x03')).cat, 'pe');
+  const pe = Buffer.alloc(0x100);
+  pe.write('MZ', 0, 'latin1');
+  pe.fill('A', 2, 0x3c);
+  pe.writeUInt32LE(0x80, 0x3c);
+  pe.write('PE\0\0', 0x80, 'latin1');
+  assert.equal(detectType(pe).cat, 'pe', 'PE signature at e_lfanew, even with readable bytes before it');
+  assert.equal(run({ attachments: [att('Notes.pdf', Buffer.from('MZ is my favourite file\n'))] }).attachments[0].findings.some((f) => f.severity === 'high'), false);
 });
 
 test('macro-enabled extensions and hidden VBA projects are reported', () => {
@@ -357,7 +390,7 @@ test('the summary counts match the findings, and every finding has the three fie
   const r = run({
     rawHead: head(['From: bob@corp.test', 'Reply-To: x@evil.test']),
     html: '<a href="http://evil.test/">paypal.com</a>',
-    attachments: [att('a.pdf.exe', Buffer.from('MZ'))],
+    attachments: [att('a.pdf.exe', MZ_BYTES)],
   });
   const all = [...r.sender, ...r.route, ...r.links, ...r.attachments].flatMap((x) => x.findings);
   for (const f of all) {
@@ -386,4 +419,106 @@ test('nothing to inspect: empty and garbage input never throws', () => {
 test('vis makes control characters visible and caps length', () => {
   assert.equal(vis('a\nb‮c'), 'a[U+000A]b[U+202E]c');
   assert.match(vis('x'.repeat(5000)), /5000 characters in all/);
+});
+
+// ---------------------------------------------- review round 1: speed, severities, filters
+
+const quickly = (label, fn, ms = 200) => {
+  const t = process.hrtime.bigint();
+  fn();
+  const took = Number(process.hrtime.bigint() - t) / 1e6;
+  assert.ok(took < ms, `${label} took ${took.toFixed(0)} ms`);
+};
+
+test('pathological input stays fast: long runs of spaces, unterminated tags, and angle brackets', () => {
+  const spaces = ' '.repeat(4000);
+  quickly('Reply-To of spaces', () => run({ rawHead: head(['From: bob@corp.test', `Reply-To: a${spaces}b${spaces}<x@y.test`]) }));
+  quickly('display name of spaces', () => run({ from: { address: 'bob@corp.test', name: `a${spaces}@${spaces}b` } }));
+  quickly('extractAddresses of spaces', () => extractAddresses(`"${spaces}" ${spaces}<${spaces}`));
+  quickly('100,000 unterminated anchors', () => extractLinks('<a href="'.repeat(100000)));
+  quickly('30,000 unterminated anchors with a body', () => extractLinks('<a href="x'.repeat(30000) + 'z'.repeat(400000)));
+  quickly('500 links of 3,000 angle brackets', () => {
+    const html = Array.from({ length: 500 }, () => `<a href="https://h.test/">${'<'.repeat(3000)}</a>`).join('');
+    const { links } = extractLinks(html);
+    assert.equal(links.length, 500);
+  });
+  quickly('500 links of brackets with a far >', () => {
+    extractLinks(Array.from({ length: 500 }, () => `<a href="https://h.test/">${'<'.repeat(2900)}></a>`).join(''));
+  });
+});
+
+test('markup inside link text is removed, a stray < is kept', () => {
+  const { links } = extractLinks('<a href="https://x.test/">a <b>bold</b> 1 < 2 <img src=y></a>');
+  assert.equal(links[0].text, 'a bold 1 < 2');
+});
+
+test('rn and vv lookalikes of a brand are flagged without any digit', () => {
+  assert.ok(find([{ findings: domainFindings('rnicrosoft.com') }], 'lookalike'));
+  assert.ok(find([{ findings: domainFindings('vvikipedia.org') }], 'lookalike'));
+  assert.equal(domainFindings('microsoft.com').length, 0);
+  assert.equal(domainFindings('barnes.org').length, 0);
+});
+
+test('a protocol-relative link is checked like a web link', () => {
+  const { row } = classifyLink('//evil.test/x', 'https://bank.com');
+  assert.equal(row.host, 'evil.test');
+  assert.equal(row.findings.find((f) => f.code === 'link_mismatch').severity, 'high');
+  assert.equal(classifyLink('//partner.test/x', 'Open menu').row.findings.length, 0);
+  const r = run({ html: '<a href="//evil.test/x">https://bank.com</a>' });
+  assert.ok(r.iocs.urls.includes('https://evil.test/x'));
+});
+
+test('Reply-To on a subdomain relation is a notice; any other difference stays high', () => {
+  const reply = (addr) => run({ rawHead: head(['From: bob@corp.test', `Reply-To: ${addr}`]) });
+  assert.equal(find(reply('x@mail.corp.test').sender, 'reply_to_subdomain').severity, 'notice');
+  assert.equal(reply('x@mail.corp.test').summary.high, 0);
+  const up = run({ rawHead: head(['From: bob@mail.corp.test', 'Reply-To: x@corp.test']), from: { address: 'bob@mail.corp.test', name: null } });
+  assert.equal(find(up.sender, 'reply_to_subdomain').severity, 'notice');
+  assert.equal(find(reply('x@evilcorp.test').sender, 'reply_to_mismatch').severity, 'high');
+  assert.equal(find(reply('x@corp.test.evil.test').sender, 'reply_to_mismatch').severity, 'high');
+  assert.equal(find(reply('x@other.test').sender, 'reply_to_mismatch').severity, 'high');
+});
+
+test('invisible characters are made visible', () => {
+  for (const c of ['\u2028', '\u2029', '\u2060', '\u2064', '\u061c', '\u180e', '\u200b', '\ufeff']) {
+    assert.match(vis(`a${c}b`), /^a\[U\+[0-9A-F]{4}\]b$/, c.codePointAt(0).toString(16));
+  }
+  assert.equal(vis('plain text'), 'plain text');
+});
+
+test('the route uses the time Tinpost received the message, not the sender-supplied Date', () => {
+  const r = run({ message: { origin: 'smtp', received_at: '2026-11-26T10:00:00Z', date_utc: '1999-01-01T00:00:00Z' } });
+  assert.equal(r.route[0].time, '2026-11-26 10:00:00');
+});
+
+test('IOCs set aside the lab itself: loopback, lab.local and the configured domains', () => {
+  const r = inspectMessage({
+    rawHead: head([
+      'Received: from mx.lab.local (mx.lab.local [127.0.0.1]) by mail.myorg.test; Thu, 26 Nov 2026 10:00:00 +0000',
+      'Received: from out.evil.test (out.evil.test [203.0.113.9]) by mx.lab.local; Thu, 26 Nov 2026 09:59:00 +0000',
+      'Received: from loop (loop [::ffff:127.0.0.5]) by x.test; Thu, 26 Nov 2026 09:58:00 +0000',
+      'Received: from loop6 (loop6 [::1]) by x.test; Thu, 26 Nov 2026 09:57:00 +0000',
+      'From: bob@corp.test',
+    ]),
+    from: { address: 'bob@corp.test', name: null },
+    html: '<a href="http://shop.myorg.test/a">a</a><a href="https://evil.test/b">b</a><a href="http://127.0.0.1/c">c</a><a href="http://x.lab.local/d">d</a>',
+    labDomains: ['myorg.test'],
+    attachments: [att('f.txt', Buffer.from('hi'))],
+    message: { origin: 'smtp', received_at: '2026-11-26T10:00:00Z' },
+    events: [{ at: '2026-11-26T10:00:01Z', via: 'smtp', source_ip: '127.0.0.1' }],
+  });
+  assert.deepEqual(r.iocs.domains.sort(), ['corp.test', 'evil.test', 'out.evil.test', 'x.test'].sort());
+  assert.deepEqual(r.iocs.ips.sort(), ['203.0.113.9']);
+  assert.deepEqual(r.iocs.urls, ['https://evil.test/b']);
+  assert.deepEqual(r.iocs.hashes, ['a'.repeat(64)]);
+  assert.ok(r.iocsExcluded.domains.includes('mx.lab.local'));
+  assert.ok(r.iocsExcluded.domains.includes('shop.myorg.test'));
+  assert.ok(r.iocsExcluded.ips.includes('127.0.0.1'));
+  assert.ok(r.iocsExcluded.ips.includes('::ffff:127.0.0.5'));
+  assert.ok(r.iocsExcluded.ips.includes('::1'));
+  assert.deepEqual(r.iocsExcluded.urls.sort(), ['http://127.0.0.1/c', 'http://shop.myorg.test/a', 'http://x.lab.local/d'].sort());
+  // Route and Links still show everything.
+  assert.ok(r.route.some((h) => h.from.includes('mx.lab.local')));
+  assert.equal(r.links.length, 4);
+  assert.ok(!iocsToText(r.iocs).includes('lab.local'));
 });

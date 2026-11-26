@@ -11,6 +11,7 @@ import { SMTPServer } from 'smtp-server';
 import { makeLab, eml } from './helpers.js';
 import { createWebServer } from '../src/web/server.js';
 
+const MZ = Buffer.from('MZ\x90\x00\x03\x00');
 const quiet = { info() {}, error() {} };
 const asAlice = { cookie: 'mb_addr=alice@lab.local' };
 
@@ -86,10 +87,10 @@ test('the Inspect tab appears on every kind of message, and the badge equals the
   assert.equal(sent.statusCode, 200);
   assert.match(sent.body, /data-view="inspect"/);
 
-  // Reply-To (high), link text mismatch (high), .pdf that is MZ (high), x.pdf.exe (double extension, high)
+  // Reply-To, link text mismatch, Invoice.pdf that is MZ (type mismatch), and x.pdf.exe (double extension, and an executable)
   const page = await lab.app.inject({ url: `/mail/${phish.id}`, headers: asAlice });
   const json = await jsonOf(lab, phish.id);
-  assert.equal(json.summary.high, 4);
+  assert.equal(json.summary.high, 5);
   assert.equal(badgeOf(page.body), json.summary.high);
   const tab = await inspectView(lab, phish.id);
   assert.equal(tab.statusCode, 200);
@@ -150,7 +151,7 @@ test('the findings appear in the tab as the acceptance cases describe', async (t
     from: 'Support <alerts@paypa1.com>',
     extraHeaders: ['Reply-To: help@evil.test', 'Return-Path: <bounce@mailer.test>'],
     html: PHISH_HTML,
-    attachments: [{ name: 'Invoice_Nov.pdf.exe', data: Buffer.from('MZ\x90\x00') }],
+    attachments: [{ name: 'Invoice_Nov.pdf.exe', data: MZ }],
   });
   const json = await jsonOf(lab, m.id);
   const code = (rows, c) => rows.flatMap((r) => r.findings).find((f) => f.code === c);
@@ -276,7 +277,7 @@ test('hostile content is shown escaped and never becomes markup or a working lin
       `<a href="javascript:alert(1337)">${s}</a><a href='${svg.replace(/'/g, '')}'>${img}</a>` +
       '<a href="data:text/html,<script>alert(1337)</script>">d</a>' +
       '<a href="https://evil.test/a\nb\u0007c">ctrl</a>',
-    attachments: [{ name: 'x', dispo: `Content-Disposition: attachment; filename*=UTF-8''${encodeURIComponent(`${svg}.pdf.exe`)}`, data: Buffer.from('MZ') }],
+    attachments: [{ name: 'x', dispo: `Content-Disposition: attachment; filename*=UTF-8''${encodeURIComponent(`${svg}.pdf.exe`)}`, data: MZ }],
   });
   assert.ok(m.id);
 
@@ -307,7 +308,7 @@ test('Export .json holds every finding and the IOC list', async (t) => {
   const m = await seed(lab, {
     extraHeaders: ['Reply-To: help@evil.test'],
     html: PHISH_HTML,
-    attachments: [{ name: 'x.pdf.exe', data: Buffer.from('MZ') }],
+    attachments: [{ name: 'x.pdf.exe', data: MZ }],
   });
   const plain = await lab.app.inject({ url: `/mail/${m.id}/inspect.json`, headers: asAlice });
   assert.equal(plain.headers['content-disposition'], undefined);
@@ -317,7 +318,7 @@ test('Export .json holds every finding and the IOC list', async (t) => {
   assert.equal(res.headers['content-disposition'], `attachment; filename="message-${m.id}-inspect.json"`);
   assert.equal(res.headers['x-content-type-options'], 'nosniff');
   const json = JSON.parse(res.body);
-  assert.deepEqual(Object.keys(json).sort(), ['attachments', 'iocs', 'links', 'notes', 'route', 'sender', 'summary']);
+  assert.deepEqual(Object.keys(json).sort(), ['attachments', 'iocs', 'iocsExcluded', 'links', 'notes', 'route', 'sender', 'summary']);
   const all = [...json.sender, ...json.route, ...json.links, ...json.attachments].flatMap((r) => r.findings);
   assert.equal(json.summary.high, all.filter((f) => f.severity === 'high').length);
   assert.equal(json.summary.notice, all.filter((f) => f.severity === 'notice').length);
@@ -346,7 +347,7 @@ function runClient({ saved = null, theme = null } = {}) {
   const sha = fakeButton({ 'data-copy': 'a'.repeat(64) });
   const iocs = fakeButton({
     'data-copy-iocs': '',
-    'data-iocs': JSON.stringify({ domains: ['evil.test'], urls: ['http://evil.test/x'], ips: ['192.0.2.1'], hashes: ['abc123'] }),
+    'data-ioc-text': '# Domains\nevil.test\n\n# URLs\nhttp://evil.test/x\n\n# IP addresses\n192.0.2.1\n\n# Hashes\nabc123',
   });
   const root = {
     querySelectorAll: (sel) => (sel === '[data-copy]' ? [sha] : sel === '[data-copy-iocs]' ? [iocs] : []),
@@ -495,4 +496,66 @@ test('the new routes use the same guard as the other message routes', async (t) 
     assert.equal(outsider.body, reference.body);
   }
   assert.equal((await lab.app.inject({ url: '/mail/99999/inspect.json', headers: asAlice })).statusCode, 404);
+});
+
+// ---------------------------------------------- review round 1: cache and IOC filter
+
+test('inspection is cached per message, the access check still runs first, and a domain change busts it', async (t) => {
+  const lab = await withWeb(t);
+  const m = await seed(lab, { html: '<a href="https://evil.test/">x</a>' });
+  const real = lab.db.getEventsForMessage.bind(lab.db);
+  let computed = 0;
+  lab.db.getEventsForMessage = (id) => { computed++; return real(id); };
+
+  const first = await lab.app.inject({ url: `/mail/${m.id}`, headers: asAlice });
+  const second = await lab.app.inject({ url: `/mail/${m.id}`, headers: asAlice });
+  assert.equal(first.statusCode, 200);
+  assert.equal(computed, 1, 'the second page view is served from the cache');
+  assert.equal(badgeOf(first.body), badgeOf(second.body));
+
+  // Warm cache, wrong mailbox: still the same not-found as any other message route.
+  const outsider = { cookie: 'mb_addr=dave@lab.local' };
+  assert.equal((await lab.app.inject({ url: `/mail/${m.id}?view=inspect`, headers: outsider })).statusCode, 404);
+  assert.equal((await lab.app.inject({ url: `/mail/${m.id}/inspect.json`, headers: outsider })).statusCode, 404);
+  assert.equal((await lab.app.inject({ url: `/mail/${m.id}/inspect.json` })).statusCode, 302);
+  assert.equal(computed, 1);
+
+  // The full (hashed) result is cached separately from the cheap one, and agrees with it on high.
+  const a = await jsonOf(lab, m.id);
+  const b = await jsonOf(lab, m.id);
+  assert.equal(computed, 2);
+  assert.deepEqual(a, b);
+  assert.equal(a.summary.high, badgeOf(first.body));
+
+  lab.db.addDomain('evil.test');
+  await jsonOf(lab, m.id);
+  assert.equal(computed, 3, 'changing the configured domains recomputes');
+});
+
+test('Copy IOCs leaves out the lab itself while the tables still show it', async (t) => {
+  const lab = await withWeb(t);
+  lab.db.addDomain('myorg.test');
+  const m = await lab.delivery.deliverRaw(
+    multipart({
+      from: 'bob@corp.test',
+      extraHeaders: ['Received: from mx.lab.local (mx.lab.local [127.0.0.1]) by mail.myorg.test; Thu, 26 Nov 2026 10:00:00 +0000'],
+      html: '<a href="http://shop.myorg.test/a">a</a><a href="https://evil.test/b">b</a><a href="http://localhost.lab.local/c">c</a>',
+    }),
+    { envelopeRecipients: ['alice@lab.local'], sourceIp: '127.0.0.1' },
+  );
+  const json = await jsonOf(lab, m.id);
+  assert.deepEqual(json.iocs.urls, ['https://evil.test/b']);
+  assert.ok(!json.iocs.ips.includes('127.0.0.1'));
+  assert.ok(!json.iocs.domains.some((d) => d.endsWith('lab.local') || d.endsWith('myorg.test')));
+  assert.ok(json.iocs.domains.includes('evil.test'));
+  assert.ok(json.iocsExcluded.ips.includes('127.0.0.1'));
+  assert.ok(json.iocsExcluded.domains.includes('shop.myorg.test'));
+  assert.ok(json.iocsExcluded.urls.includes('http://shop.myorg.test/a'));
+
+  const tab = (await inspectView(lab, m.id)).body;
+  assert.match(tab, /mx\.lab\.local/, 'the Route table still shows the hop');
+  assert.match(tab, /shop\.myorg\.test/, 'the Links table still shows the link');
+  const attr = /data-ioc-text="([^"]*)"/.exec(tab)[1];
+  assert.match(attr, /# URLs\nhttps:\/\/evil\.test\/b/);
+  assert.doesNotMatch(attr, /lab\.local|myorg|127\.0\.0\.1/);
 });

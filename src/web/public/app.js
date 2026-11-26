@@ -166,15 +166,6 @@
     return Promise.resolve(fallback());
   }
 
-  /* The IOC lists as the text Copy IOCs puts on the clipboard: a header per type. */
-  function iocText(iocs) {
-    var groups = [['Domains', iocs.domains], ['URLs', iocs.urls], ['IP addresses', iocs.ips], ['Hashes', iocs.hashes]];
-    return groups
-      .filter(function (g) { return g[1] && g[1].length; })
-      .map(function (g) { return '# ' + g[0] + '\n' + g[1].join('\n'); })
-      .join('\n\n');
-  }
-
   function flash(button, label) {
     var old = button.textContent;
     button.textContent = label;
@@ -189,9 +180,8 @@
     });
     root.querySelectorAll('[data-copy-iocs]').forEach(function (b) {
       b.addEventListener('click', function () {
-        var iocs = {};
-        try { iocs = JSON.parse(b.getAttribute('data-iocs') || '{}'); } catch (e) { iocs = {}; }
-        var text = iocText(iocs);
+        /* The text is built once, on the server, from the same list the page shows. */
+        var text = b.getAttribute('data-ioc-text') || '';
         if (!text) { flash(b, 'No IOCs'); return; }
         copyText(text).then(function (ok) { flash(b, ok ? 'Copied' : 'Copy failed'); });
       });

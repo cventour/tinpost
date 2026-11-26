@@ -10,7 +10,8 @@ Every release, in plain language. Newest first.
   took, where its links really go and what its attachments really are. Nothing leaves your
   machine to do it.
 - New: **Copy IOCs and Export .json on the Inspect tab.** Copy the domains, URLs, addresses
-  and file hashes in one go, or save the whole breakdown as a file.
+  and file hashes in one go, leaving out your lab's own addresses, or save the whole
+  breakdown as a file.
 
 ## v0.7.9 — 24 September 2026
 

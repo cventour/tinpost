@@ -369,8 +369,9 @@ Each message can be read four ways:
   them. **Links** shows what each link says against where it really goes. **Attachments**
   gives the SHA-256, SHA-1 and MD5 and compares the declared type with what the file
   really is. The tab carries a badge with the number of high-severity findings.
-  **Copy IOCs** puts the domains, URLs, IP addresses and hashes on the clipboard, and
-  **Export .json** saves the whole breakdown.
+  **Copy IOCs** puts the domains, URLs, IP addresses and hashes on the clipboard, leaving
+  out loopback addresses, `*.lab.local` and the domains you have configured, and
+  **Export .json** saves the whole breakdown, including what was left out.
 
   Everything is worked out from the stored message, offline: no DNS, reputation or URL
   lookups are made, and nothing is fetched. The checks are heuristics for training, not
@@ -752,7 +753,7 @@ of scope for a vulnerability report, and how to send one privately.
 
 ```bash
 npm install
-npm test          # 281 tests, no network access required
+npm test          # 293 tests, no network access required
 npm start         # runs the server from source
 ```
 

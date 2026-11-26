@@ -6,7 +6,7 @@ import { normaliseAddress, domainOf } from '../db.js';
 import { htmlToText } from '../parse.js';
 import { ScanRejected } from '../scan.js';
 import { relayConfig, isLocalSender } from '../relay.js';
-import { inspectMessage } from '../inspect.js';
+import { inspectMessage, iocsToText } from '../inspect.js';
 
 export const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -194,6 +194,7 @@ export async function registerMailRoutes(app) {
       attachments: db.getAttachments(id, { includeInline: false }),
       view,
       inspection,
+      iocText: iocsToText(inspection.iocs),
       folder: m.from_addr === addr ? 'sent' : 'inbox',
       fromTimeline: req.query.from === 'timeline',
     });
@@ -250,7 +251,33 @@ export async function registerMailRoutes(app) {
     return { sha1: sha1.digest('hex'), md5: md5.digest('hex') };
   }
 
+  /**
+   * A stored message never changes (there is no UPDATE on messages, and ids come from
+   * AUTOINCREMENT so are never reused), so its inspection is cached in a small LRU. The
+   * key still carries the blob hashes and the configured domains, so an entry can never
+   * be served for different content or after the IOC filter's domain list changes.
+   * The cache holds results only; every request runs the mailbox access check before
+   * it gets here, so a cached entry is never handed to a mailbox that cannot see it.
+   */
+  const inspectCache = new Map();
+  const INSPECT_CACHE_MAX = 64;
+
   async function inspectionFor(id, m, { hashes }) {
+    const labDomains = db.listDomains();
+    const key = [id, m.raw_hash, m.html_hash ?? '', hashes ? 'full' : 'cheap', labDomains.join(',')].join('|');
+    const hit = inspectCache.get(key);
+    if (hit) {
+      inspectCache.delete(key);
+      inspectCache.set(key, hit);
+      return hit;
+    }
+    const result = await computeInspection(id, m, { hashes, labDomains });
+    inspectCache.set(key, result);
+    if (inspectCache.size > INSPECT_CACHE_MAX) inspectCache.delete(inspectCache.keys().next().value);
+    return result;
+  }
+
+  async function computeInspection(id, m, { hashes, labDomains }) {
     const rawHead = await readSlice(m.raw_hash, 0, 256 * 1024);
     const html = m.html_hash ? (await readSlice(m.html_hash, 0, 8 * 1024 * 1024)).toString('utf8') : null;
     const all = db.getAttachments(id, { includeInline: true });
@@ -280,6 +307,7 @@ export async function registerMailRoutes(app) {
       html,
       attachments,
       attachmentsTotal: all.length,
+      labDomains,
       message: m,
       events: db.getEventsForMessage(id),
     });

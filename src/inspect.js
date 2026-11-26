@@ -21,18 +21,24 @@ const MAX_HEADERS = 5000;
 const MAX_HOPS = 200;
 const MAX_LINKS = 500;
 const MAX_HTML_CHARS = 8 * 1024 * 1024;
-const MAX_TAG_CHARS = 300 * 1024;
+const MAX_TAG_CHARS = 128 * 1024;
+const MAX_SCAN_BUDGET = 20_000_000;
 const MAX_ATTACHMENTS = 100;
 const SHOW_MAX = 2000;
 
 // ---------------------------------------------------------------- text helpers
+
+/** Characters that hide or reorder text; made visible as [U+XXXX] wherever a message value is shown. */
+const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+const BIDI_RE = /[\u061c\u202a-\u202e\u2066-\u2069]/;
+const HIDDEN_RE = /[\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
 
 /** Printable, bounded version of anything that came out of a message. */
 export function vis(value, max = SHOW_MAX) {
   let s = String(value ?? '');
   const over = s.length > max;
   if (over) s = s.slice(0, max);
-  s = s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/gu, (c) =>
+  s = s.replace(INVISIBLE_RE, (c) =>
     `[U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}]`,
   );
   return over ? `${s}... (${String(value).length} characters in all)` : s;
@@ -101,7 +107,8 @@ export function parseHeaders(raw) {
 /** Addresses in a header value, as [{name, address}]. Deliberately forgiving. */
 export function extractAddresses(value) {
   const out = [];
-  const s = decodeWords(String(value ?? '').slice(0, 8000));
+  // Whitespace is collapsed and the input capped first, so a run of spaces cannot make the scan slow.
+  const s = decodeWords(String(value ?? '').replace(/\s+/g, ' ').slice(0, 1000));
   const re = /(?:"((?:[^"\\]|\\.){0,300})"|([^<>,;"]{0,300}?))\s*<([^<>\s]{1,300})>|([^\s<>,;"()]{1,300}@[^\s<>,;"()]{1,300})/g;
   let m;
   while ((m = re.exec(s)) && out.length < 50) {
@@ -122,7 +129,7 @@ const BRANDS = [
   'paypal', 'microsoft', 'google', 'apple', 'amazon', 'netflix', 'facebook', 'linkedin', 'dropbox',
   'docusign', 'outlook', 'office365', 'github', 'adobe', 'fedex', 'instagram', 'whatsapp', 'twitter',
   'wellsfargo', 'citibank', 'barclays', 'santander', 'ebay', 'spotify', 'yahoo', 'icloud', 'binance',
-  'coinbase', 'chase', 'hsbc', 'mastercard', 'steam',
+  'coinbase', 'wikipedia', 'chase', 'hsbc', 'mastercard', 'steam',
 ];
 const LEET = { 0: 'o', 1: 'l', 3: 'e', 5: 's' };
 
@@ -173,9 +180,9 @@ export function domainFindings(domain, { where = 'domain' } = {}) {
   for (const label of ascii) {
     const swapped = label.replace(/[0135]/g, (c) => LEET[c]);
     const variants = [swapped, swapped.replace(/rn/g, 'm').replace(/vv/g, 'w')];
-    const brand = BRANDS.find((b) => !label.includes(b) && variants.some((v) => v.includes(b)));
+    const brand = BRANDS.find((b) => !label.includes(b) && variants.some((v) => v !== label && v.includes(b)));
     const inner = /[a-z][0135]+[a-z]/.test(label) && /[a-z]{3}/.test(label);
-    if (brand && label !== swapped) {
+    if (brand) {
       out.push(finding('notice', 'lookalike', `The ${where} label ${vis(label)} looks like "${brand}" with digits or letters swapped.`));
       break;
     }
@@ -195,12 +202,13 @@ function buildSender(headers, { fromAddr, fromName }) {
 
   const fromF = [];
   if (fromAddr) fromF.push(...domainFindings(fromDomain, { where: 'sender domain' }));
-  const nameAddrs = extractAddresses(fromName ?? '').filter((a) => a.address.includes('@'));
-  const bare = /[^\s<>"]{1,200}@[^\s<>"]{1,200}/.exec(fromName ?? '');
+  const name = String(fromName ?? '').replace(/\s+/g, ' ').slice(0, 1000);
+  const nameAddrs = extractAddresses(name).filter((a) => a.address.includes('@'));
+  const bare = /[^\s<>"@]{1,64}@[^\s<>"@]{1,64}/.exec(name);
   const inName = nameAddrs[0]?.address ?? bare?.[0]?.toLowerCase();
   if (inName && inName !== fromAddr) {
     fromF.push(
-      finding('notice', 'display_name_address', `The display name contains the address ${vis(inName)}, which is not the real sender address.`),
+      finding('high', 'display_name_address', `The display name contains the address ${vis(inName)}, which is not the real sender address.`),
     );
   }
   rows.push({
@@ -213,12 +221,19 @@ function buildSender(headers, { fromAddr, fromName }) {
   if (rt) {
     const addrs = extractAddresses(rt.value);
     const f = [];
+    let subdomain = null;
+    let other = null;
     for (const a of addrs) {
       const dom = domainOfAddr(a.address);
-      if (fromDomain && dom && dom !== fromDomain) {
-        f.push(finding('high', 'reply_to_mismatch', `Replies go to ${vis(dom)}, not to the sender's own domain ${vis(fromDomain)}.`));
-        break;
-      }
+      if (!fromDomain || !dom || dom === fromDomain) continue;
+      // Labels are compared exactly: corp.test and evilcorp.test are not a subdomain pair.
+      if (dom.endsWith('.' + fromDomain) || fromDomain.endsWith('.' + dom)) subdomain ??= dom;
+      else other ??= dom;
+    }
+    if (other) {
+      f.push(finding('high', 'reply_to_mismatch', `Replies go to ${vis(other)}, not to the sender's own domain ${vis(fromDomain)}.`));
+    } else if (subdomain) {
+      f.push(finding('notice', 'reply_to_subdomain', `Replies go to ${vis(subdomain)}, a subdomain relation of the sender's domain ${vis(fromDomain)}.`));
     }
     if (!f.length && addrs.some((a) => a.address !== fromAddr)) {
       f.push(finding('info', 'reply_to_other_mailbox', 'Replies go to a different mailbox on the same domain.'));
@@ -289,7 +304,7 @@ export function parseReceived(value) {
   const byHost = byClause.split(/\s+/)[0] ?? '';
   const withM = /\bwith\s+([A-Za-z0-9-]{1,30})/i.exec(main);
   const ips = [];
-  const ipRe = /\[(?:ipv6:)?(\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:]{2,45})\]/gi;
+  const ipRe = /\[(?:ipv6:)?(\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:.]{2,45})\]/gi;
   let m;
   while ((m = ipRe.exec(fromClause)) && ips.length < 4) ips.push(m[1].toLowerCase());
   const t = dateText ? Date.parse(dateText) : NaN;
@@ -404,7 +419,8 @@ function buildRoute(headers, { message, events }) {
       }
     }
   } else if (message) {
-    const t = message.date_utc ? Date.parse(message.date_utc) : NaN;
+    // received_at is Tinpost's own clock; date_utc is whatever the sender wrote.
+    const t = message.received_at ? Date.parse(message.received_at) : NaN;
     const time = Number.isNaN(t) ? null : t;
     if (message.origin === 'webmail') {
       record({
@@ -468,7 +484,7 @@ const COMMON_TLDS = new Set(
   'com net org edu gov mil int info biz io co app dev xyz online site top club shop live cloud ai me tv us uk de fr nl ru cn jp br in it es se no ch pl'.split(' '),
 );
 const TEXT_HOST_RE =
-  /^(?:(?:https?|ftp):\/\/)?((?:[a-z0-9¡-￿](?:[a-z0-9¡-￿-]{0,61}[a-z0-9¡-￿])?\.)+[a-z¡-￿]{2,24})(?::\d{1,5})?(?:[/?#]\S{0,200})?$/i;
+  /^(?:(?:https?|ftp):\/\/)?((?:[a-z0-9\u00a1-\uffff](?:[a-z0-9\u00a1-\uffff-]{0,61}[a-z0-9\u00a1-\uffff])?\.)+[a-z\u00a1-\uffff]{2,24})(?::\d{1,5})?(?:[/?#]\S{0,200})?$/i;
 const TEXT_MAIL_RE = /^([^\s@<>]{1,64})@((?:[a-z0-9-]{1,63}\.)+[a-z]{2,24})$/i;
 
 /** The host a piece of link text claims to point at, or null when it does not look like one. */
@@ -527,13 +543,36 @@ function hrefOf(tag) {
   return null;
 }
 
+/** Remove <...> runs from a short window in one linear pass; a '<' with no nearby '>' is kept as text. */
+function stripTags(inner) {
+  const n = inner.length;
+  const nextGt = new Int32Array(n + 1);
+  nextGt[n] = -1;
+  for (let k = n - 1; k >= 0; k--) nextGt[k] = inner.charCodeAt(k) === 62 ? k : nextGt[k + 1];
+  let out = '';
+  let k = 0;
+  while (k < n) {
+    // Only '<' followed by a letter, '/', '!' or '?' starts a tag; "1 < 2" is text.
+    if (inner.charCodeAt(k) === 60 && /[a-z/!?]/i.test(inner[k + 1] ?? '')) {
+      const e = nextGt[k];
+      if (e >= 0 && e - k <= 500) {
+        k = e + 1;
+        continue;
+      }
+    }
+    out += inner[k++];
+  }
+  return out;
+}
+
 /** Every <a href> and <area href> in a stored HTML part. A scanner; nothing is rendered. */
 export function extractLinks(html, { max = MAX_LINKS } = {}) {
   const src = String(html ?? '').slice(0, MAX_HTML_CHARS);
   const out = [];
   let truncated = false;
   let i = 0;
-  while (i < src.length) {
+  let scanned = 0;
+  while (i < src.length && scanned < MAX_SCAN_BUDGET) {
     const lt = src.indexOf('<', i);
     if (lt < 0) break;
     if (src.startsWith('<!--', lt)) {
@@ -562,8 +601,11 @@ export function extractLinks(html, { max = MAX_LINKS } = {}) {
       else if (ch === '>') break;
       j++;
     }
+    scanned += j - lt;
     if (j >= limit) {
-      i = lt + 1;
+      // No end to this tag within reach. Skip past what was scanned instead of
+      // rescanning it from the next '<a', which would make a run of them quadratic.
+      i = limit;
       continue;
     }
     const href = hrefOf(src.slice(lt + 1 + nameLen, j));
@@ -578,7 +620,7 @@ export function extractLinks(html, { max = MAX_LINKS } = {}) {
       const win = src.slice(i, i + 3000);
       const close = win.toLowerCase().indexOf('</a');
       const inner = close < 0 ? win : win.slice(0, close);
-      text = decodeEntities(inner.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim().slice(0, 300);
+      text = decodeEntities(stripTags(inner)).replace(/\s+/g, ' ').trim().slice(0, 300);
       if (!text && /<img\b/i.test(inner)) text = '[image]';
     }
     out.push({ rawHref: href, text });
@@ -600,7 +642,10 @@ export function classifyLink(rawHref, text) {
   const row = { text: vis(text, 300), target: vis(href), host: '', kind: 'other', findings };
   const ioc = { url: null, domain: null, ip: null };
   const sm = /^([a-z][a-z0-9+.-]{0,30}):/i.exec(href.slice(0, 40));
-  const scheme = sm ? sm[1].toLowerCase() : '';
+  let scheme = sm ? sm[1].toLowerCase() : '';
+  // A leading // is whatever scheme the page used; treat it as a web link for host checks.
+  const protoRelative = !scheme && href.startsWith('//');
+  if (protoRelative) scheme = 'https';
 
   if (scheme === 'javascript' || scheme === 'vbscript') {
     row.kind = 'script';
@@ -626,7 +671,7 @@ export function classifyLink(rawHref, text) {
     row.target = vis(`mailto:${addr}`);
   } else if (scheme === 'http' || scheme === 'https' || scheme === 'ftp') {
     row.kind = 'web';
-    const rest = href.slice(scheme.length + 1).replace(/\\/g, '/');
+    const rest = (protoRelative ? href : href.slice(scheme.length + 1)).replace(/\\/g, '/');
     if (rest.startsWith('//')) {
       const authority = rest.slice(2).split(/[/?#]/, 1)[0];
       const at = authority.lastIndexOf('@');
@@ -651,7 +696,7 @@ export function classifyLink(rawHref, text) {
         findings.push(...domainFindings(host, { where: 'link host' }));
         ioc.domain = host;
       }
-      ioc.url = href.length <= 4096 ? href : null;
+      ioc.url = href.length <= 4096 ? (protoRelative ? `https:${href}` : href) : null;
     }
   } else if (scheme) {
     findings.push(finding('info', 'other_scheme', `The link uses the ${vis(scheme, 30)}: scheme.`));
@@ -694,6 +739,7 @@ function buildLinks(html) {
 
 const EXEC_CATS = new Set(['pe', 'elf', 'macho', 'script']);
 const EXEC_EXT = new Set('exe dll scr com sys cpl ocx msi bat cmd js jse vbs vbe wsf wsh ps1 hta jar lnk pif reg msc sh'.split(' '));
+const RISKY_NAME_EXT = new Set('exe scr com bat cmd ps1 vbs vbe js jse wsf hta lnk msi'.split(' '));
 const DOC_EXT = new Set('pdf doc docx xls xlsx ppt pptx txt rtf csv jpg jpeg png gif zip rar 7z odt ods html htm'.split(' '));
 const MACRO_EXT = new Set('docm xlsm pptm dotm xlam xlsb ppam potm sldm'.split(' '));
 
@@ -746,13 +792,33 @@ function zipEntries(buf) {
   return { names, encrypted: encrypted.local || encrypted.central };
 }
 
+/**
+ * "MZ" alone is two letters that plain text can start with. A file counts as a Windows
+ * executable when a PE signature sits where the DOS header says it should, or when the
+ * bytes after "MZ" (up to 64) include a binary one. "MZ" followed only by readable
+ * text, or nothing, is treated as text.
+ */
+function isDosExecutable(h) {
+  if (h.length < 3 || h[0] !== 0x4d || h[1] !== 0x5a) return false;
+  if (h.length >= 0x40) {
+    const off = h.readUInt32LE(0x3c);
+    if (off <= h.length - 4 && h.toString('latin1', off, off + 4) === 'PE\0\0') return true;
+  }
+  const n = Math.min(h.length, 64);
+  for (let i = 2; i < n; i++) {
+    const b = h[i];
+    if (b < 9 || (b > 13 && b < 32) || b > 126) return true;
+  }
+  return false;
+}
+
 /** Sniff the real type from the first (and, for archives, last) bytes. */
 export function detectType(head, tail = Buffer.alloc(0)) {
   const h = Buffer.isBuffer(head) ? head : Buffer.alloc(0);
   const out = { cat: 'unknown', encrypted: false, macro: false, names: [] };
   const starts = (sig) => h.length >= sig.length && h.subarray(0, sig.length).equals(Buffer.from(sig, 'latin1'));
   if (!h.length) return { ...out, cat: 'empty' };
-  if (starts('MZ')) out.cat = 'pe';
+  if (isDosExecutable(h)) out.cat = 'pe';
   else if (starts('\x7fELF')) out.cat = 'elf';
   else if (['\xfe\xed\xfa\xce', '\xfe\xed\xfa\xcf', '\xce\xfa\xed\xfe', '\xcf\xfa\xed\xfe', '\xca\xfe\xba\xbe'].some(starts)) out.cat = 'macho';
   else if (starts('%PDF-')) out.cat = 'pdf';
@@ -810,11 +876,11 @@ export function detectType(head, tail = Buffer.alloc(0)) {
 function nameChecks(rawName) {
   const findings = [];
   const name = String(rawName ?? '');
-  if (/[‪-‮⁦-⁩]/.test(name)) {
+  if (BIDI_RE.test(name)) {
     findings.push(finding('high', 'rtl_override', 'The file name contains a right-to-left override or similar control character, which can make the real extension read as something harmless.'));
   }
   // Drop invisible controls and collapse padding so "x.pdf      .exe" reads as it is.
-  const plain = name.replace(/[‪-‮⁦-⁩​-‏﻿]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+  const plain = name.replace(HIDDEN_RE, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
   const exts = plain.slice(-500).split('.').slice(1).map((e) => e.trim().toLowerCase());
   const last = exts[exts.length - 1] ?? '';
   const prev = exts[exts.length - 2] ?? '';
@@ -843,8 +909,13 @@ function buildAttachment(a) {
     const claimed = EXT_EXPECT[ext] ? `.${vis(ext, 20)}` : `declared type ${vis(mime, 80)}`;
     findings.push(finding(sev, 'type_mismatch', `Type mismatch: the file is named or declared as ${claimed}, but its content is detected as: ${LABEL[det.cat]}.`));
   }
-  if (execDetected && !mismatched) {
-    findings.push(finding('notice', 'executable', `The attachment is an executable (${LABEL[det.cat]}).`));
+  // Executable content is high whatever the file is called, unless the mismatch finding
+  // above has already said so. A few extensions are high on the name alone, even when
+  // the content reads as text (scripts, shortcuts, installers).
+  if (execDetected && !findings.some((f) => f.code === 'type_mismatch' && f.severity === 'high')) {
+    findings.push(finding('high', 'executable', `The attachment is an executable (${LABEL[det.cat]}).`));
+  } else if (!execDetected && RISKY_NAME_EXT.has(ext)) {
+    findings.push(finding('high', 'executable_extension', `The .${vis(ext, 20)} extension is one that runs code or launches something when opened.`));
   }
   if (MACRO_EXT.has(ext) || det.macro) {
     if (det.macro && !MACRO_EXT.has(ext)) {
@@ -882,6 +953,7 @@ const uniq = (list) => [...new Set(list.filter(Boolean))];
  * @param {string|null} input.html the stored HTML part
  * @param {Array} input.attachments rows: {id, filename, contentType, size, sha256, isInline, head, tail, sha1?, md5?}
  * @param {number} [input.attachmentsTotal] how many attachments the message has, when more than were passed
+ * @param {string[]} [input.labDomains] domains this instance accepts mail for; kept out of the IOC list
  * @param {object} input.message   the messages row (origin, relay_status, relay_detail, date_utc)
  * @param {Array} input.events     the events rows for this message
  */
@@ -926,6 +998,28 @@ export function inspectMessage(input) {
   const urls = uniq(linksBuilt.iocs.map((i) => i.url));
   const hashes = uniq(attachments.flatMap((a) => [a.sha256, a.sha1, a.md5]));
 
+  // Copy IOCs is for what an analyst would block or hunt for, so the lab's own
+  // infrastructure is set aside: loopback addresses, *.lab.local and the domains this
+  // instance is configured to accept. Route still shows every hop; the rest is kept in
+  // iocsExcluded so nothing is hidden from the export.
+  const own = (input.labDomains ?? []).map((d) => String(d).toLowerCase());
+  const ownDomain = (d) => {
+    const x = String(d).toLowerCase();
+    return x === 'lab.local' || x.endsWith('.lab.local') || own.some((o) => o && (x === o || x.endsWith('.' + o)));
+  };
+  const ownIp = (a) => /^(?:::ffff:)?127\./i.test(a) || a === '::1' || /^0*:0*:0*:0*:0*:0*:0*:0*1$/.test(a);
+  const urlHost = (u) => {
+    try {
+      return new URL(u).hostname.replace(/^\[|\]$/g, '');
+    } catch {
+      return '';
+    }
+  };
+  const split = (list, isOwn) => [list.filter((x) => !isOwn(x)), list.filter(isOwn)];
+  const [domainsKept, domainsOut] = split(domains, ownDomain);
+  const [ipsKept, ipsOut] = split(ips, ownIp);
+  const [urlsKept, urlsOut] = split(urls, (u) => ownDomain(urlHost(u)) || ownIp(urlHost(u)));
+
   return {
     summary,
     notes,
@@ -933,7 +1027,8 @@ export function inspectMessage(input) {
     route: routeBuilt.rows,
     links: linksBuilt.rows,
     attachments,
-    iocs: { domains, urls, ips, hashes },
+    iocs: { domains: domainsKept, urls: urlsKept, ips: ipsKept, hashes },
+    iocsExcluded: { domains: domainsOut, urls: urlsOut, ips: ipsOut, hashes: [] },
   };
 }
 

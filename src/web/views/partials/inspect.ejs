@@ -95,7 +95,7 @@
   <div class="insp-foot">
     <span class="hint">All checks run on the stored message. Nothing is looked up online. These are training heuristics, not a verdict.</span>
     <span class="insp-actions">
-      <button type="button" class="small ghost" data-copy-iocs data-iocs="<%= JSON.stringify(inspection.iocs) %>">Copy IOCs</button>
+      <button type="button" class="small ghost" data-copy-iocs data-ioc-text="<%= iocText %>">Copy IOCs</button>
       <a class="btn small ghost" href="/mail/<%= m.id %>/inspect.json?download">Export .json</a>
     </span>
   </div>

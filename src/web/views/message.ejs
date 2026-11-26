@@ -75,7 +75,7 @@
               title="HTML message body"></iframe>
       <p class="hint">Rendered with scripts disabled and remote content blocked. Inline images are served from this server only.</p>
     <% } else if (view === 'inspect') { %>
-      <%- include('partials/inspect', { inspection, m, fmtBytes }) %>
+      <%- include('partials/inspect', { inspection, iocText, m, fmtBytes }) %>
     <% } else if (view === 'source') { %>
       <pre class="source" data-source-for="<%= m.id %>">Loading source&hellip;</pre>
     <% } else { %>
