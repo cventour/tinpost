@@ -1,8 +1,12 @@
 import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
+import { open } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import { normaliseAddress, domainOf } from '../db.js';
 import { htmlToText } from '../parse.js';
 import { ScanRejected } from '../scan.js';
 import { relayConfig, isLocalSender } from '../relay.js';
+import { inspectMessage } from '../inspect.js';
 
 export const ADDR_COOKIE = 'mb_addr';
 const ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -162,7 +166,7 @@ export async function registerMailRoutes(app) {
 
   // ---------- one message ----------
 
-  app.get('/mail/:id', (req, reply) => {
+  app.get('/mail/:id', async (req, reply) => {
     const addr = requireAddr(req, reply);
     if (!addr) return reply;
     const id = Number.parseInt(req.params.id, 10);
@@ -171,11 +175,17 @@ export async function registerMailRoutes(app) {
     const m = db.getMessage(id);
     db.markSeen(addr, id);
 
-    const view = ['html', 'text', 'source'].includes(req.query.view)
+    const view = ['html', 'text', 'source', 'inspect'].includes(req.query.view)
       ? req.query.view
       : m.html_hash
         ? 'html'
         : 'text';
+
+    // The badge on the Inspect tab is the count of high findings, so the findings are
+    // worked out on every page. That costs two small reads per attachment and one pass
+    // over the headers and links, and no finding depends on SHA-1 or MD5, so those are
+    // streamed only when the Inspect tab itself is open (and for the JSON export).
+    const inspection = await inspectionFor(id, m, { hashes: view === 'inspect' });
 
     return reply.view('message', {
       addr,
@@ -183,10 +193,97 @@ export async function registerMailRoutes(app) {
       recipients: db.getRecipients(id),
       attachments: db.getAttachments(id, { includeInline: false }),
       view,
+      inspection,
       folder: m.from_addr === addr ? 'sent' : 'inbox',
       fromTimeline: req.query.from === 'timeline',
     });
   });
+
+  /** The Inspect breakdown as JSON, for Export .json and for other tools. */
+  app.get('/mail/:id/inspect.json', async (req, reply) => {
+    const addr = requireAddr(req, reply);
+    if (!addr) return reply;
+    const id = Number.parseInt(req.params.id, 10);
+    if (!db.canAccess(addr, id)) return notFound(reply, addr);
+    const m = db.getMessage(id);
+    const inspection = await inspectionFor(id, m, { hashes: true });
+
+    reply.type('application/json; charset=utf-8').header('x-content-type-options', 'nosniff');
+    if (req.query.download !== undefined) {
+      reply.header('content-disposition', `attachment; filename="message-${id}-inspect.json"`);
+    }
+    return reply.send(JSON.stringify(inspection, null, 2));
+  });
+
+  /** A slice of a stored blob. A missing or unreadable blob reads as empty, never as a 500. */
+  async function readSlice(hash, start, length) {
+    let fh;
+    try {
+      fh = await open(blobs.pathFor(hash), 'r');
+      const { size } = await fh.stat();
+      const from = Math.max(0, Math.min(start < 0 ? size + start : start, size));
+      const want = Math.max(0, Math.min(length, size - from));
+      const buf = Buffer.alloc(want);
+      const { bytesRead } = await fh.read(buf, 0, want, from);
+      return bytesRead === want ? buf : buf.subarray(0, bytesRead);
+    } catch {
+      return Buffer.alloc(0);
+    } finally {
+      await fh?.close().catch(() => {});
+    }
+  }
+
+  /** SHA-1 and MD5 in one streamed pass; a large attachment is never held in memory. */
+  async function streamHashes(hash) {
+    const sha1 = createHash('sha1');
+    const md5 = createHash('md5');
+    try {
+      await pipeline(blobs.openRead(hash), async function (chunks) {
+        for await (const c of chunks) {
+          sha1.update(c);
+          md5.update(c);
+        }
+      });
+    } catch {
+      return { sha1: null, md5: null };
+    }
+    return { sha1: sha1.digest('hex'), md5: md5.digest('hex') };
+  }
+
+  async function inspectionFor(id, m, { hashes }) {
+    const rawHead = await readSlice(m.raw_hash, 0, 256 * 1024);
+    const html = m.html_hash ? (await readSlice(m.html_hash, 0, 8 * 1024 * 1024)).toString('utf8') : null;
+    const all = db.getAttachments(id, { includeInline: true });
+    const rows = all.slice(0, 100);
+    const attachments = [];
+    for (const a of rows) {
+      // Small files are read whole; larger ones by their first and last bytes, which is
+      // where an archive keeps its first entries and its directory.
+      const small = a.size_bytes <= 96 * 1024;
+      const head = await readSlice(a.content_hash, 0, small ? 96 * 1024 : 32 * 1024);
+      const tail = small ? Buffer.alloc(0) : await readSlice(a.content_hash, -(64 * 1024), 64 * 1024);
+      attachments.push({
+        id: a.id,
+        filename: a.filename,
+        contentType: a.content_type,
+        size: a.size_bytes,
+        sha256: a.content_hash,
+        isInline: !!a.is_inline,
+        head,
+        tail,
+        ...(hashes ? await streamHashes(a.content_hash) : {}),
+      });
+    }
+    return inspectMessage({
+      rawHead,
+      from: { address: m.from_addr, name: m.from_name },
+      html,
+      attachments,
+      attachmentsTotal: all.length,
+      message: m,
+      events: db.getEventsForMessage(id),
+    });
+  }
 
   /**
    * The HTML part, served into a sandboxed iframe.

@@ -352,6 +352,42 @@ code { font-family: var(--mono); font-size: 0.92em; background: var(--bg); paddi
 .attachments .ftype, .attachments .fsize { color: var(--ink-dim); font-size: 13px; margin-left: auto; }
 .attachments .ftype { margin-left: 0; font-family: var(--mono); font-size: 12px; }
 
+/* ---------- inspect tab ---------- */
+
+.tab .badge {
+  display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; text-align: center;
+  font-size: 11px; font-weight: 700; line-height: 18px; border-radius: 999px;
+  background: var(--err-line); color: #fff; font-variant-numeric: tabular-nums;
+}
+.inspect { font-size: 14px; }
+.insp-summary { margin: 0 0 6px; color: var(--ink-dim); }
+.sev-count { font-variant-numeric: tabular-nums; }
+.sev-count.sev-high { color: var(--err-line); }
+.sev-count.sev-notice { color: var(--warn-line); }
+.insp-sec h2 { margin: 22px 0 8px; }
+.insp-empty { margin: 0; color: var(--ink-dim); padding: 10px 12px; border: 1px dashed var(--line); border-radius: 6px; }
+.insp-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.insp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.insp-table th, .insp-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.insp-table thead th { background: var(--sunk); color: var(--ink-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.insp-table tbody th { color: var(--ink-dim); font-weight: 500; white-space: nowrap; }
+.insp-table tr:last-child th, .insp-table tr:last-child td { border-bottom: 0; }
+.insp-table .mono { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.insp-table .num { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.insp-table .wrap { overflow-wrap: anywhere; max-width: 36ch; }
+.insp-table .mono.wrap { max-width: 52ch; }
+.insp-table .hash { word-break: break-all; }
+.insp-table .hashcell { min-width: 200px; }
+.findings { list-style: none; margin: 0; padding: 0; }
+.findings li { margin: 0 0 4px; overflow-wrap: anywhere; }
+.findings li:last-child { margin-bottom: 0; }
+.tag.sev-high { color: var(--err-line); border-color: var(--err-line); background: var(--err-bg); font-weight: 700; }
+.tag.sev-notice { color: var(--ink); border-color: var(--warn-line); background: var(--warn-bg); }
+.tag.sev-info { color: var(--ink-dim); }
+.insp-foot { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-top: 18px; }
+.insp-foot .hint { margin: 0; }
+.insp-actions { display: flex; gap: 8px; }
+
 .view-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 14px; }
 .body-pane { min-height: 120px; }
 .html-body {

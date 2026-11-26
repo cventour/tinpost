@@ -63,6 +63,7 @@
     <% } %>
     <a class="tab <%= view === 'text' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=text" data-view="text">Plain text</a>
     <a class="tab <%= view === 'source' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=source" data-view="source">Source</a>
+    <a class="tab <%= view === 'inspect' ? 'on' : '' %>" href="/mail/<%= m.id %>?view=inspect" data-view="inspect">Inspect<% if (inspection.summary.high) { %> <span class="badge" title="<%= inspection.summary.high %> high-severity finding<%= inspection.summary.high === 1 ? '' : 's' %>"><%= inspection.summary.high %></span><% } %></a>
   </div>
 
   <div class="body-pane">
@@ -73,6 +74,8 @@
               referrerpolicy="no-referrer"
               title="HTML message body"></iframe>
       <p class="hint">Rendered with scripts disabled and remote content blocked. Inline images are served from this server only.</p>
+    <% } else if (view === 'inspect') { %>
+      <%- include('partials/inspect', { inspection, m, fmtBytes }) %>
     <% } else if (view === 'source') { %>
       <pre class="source" data-source-for="<%= m.id %>">Loading source&hellip;</pre>
     <% } else { %>

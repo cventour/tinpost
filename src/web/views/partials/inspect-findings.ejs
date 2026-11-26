@@ -1,0 +1,3 @@
+<% if (!list.length) { %><span class="dim">none</span><% } else { %>
+<ul class="findings"><% list.forEach(function (f) { %><li><span class="tag sev-<%= f.severity %>"><%= f.severity %></span> <%= f.text %></li><% }) %></ul>
+<% } %>
