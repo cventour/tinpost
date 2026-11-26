@@ -94,6 +94,10 @@ does not protect and how to report a vulnerability.
   reply, compose and download `.eml` files from the browser.
 - **Timeline** — every message and connection the instance has seen, across all
   mailboxes, on one page with an activity chart, filters and search.
+- **Inspect** — every message has a tab that breaks it down the way an analyst would:
+  who really sent it, the route it took, where its links really go and what its
+  attachments really are, with hashes. It all runs on the stored message; nothing is
+  looked up online.
 - **Live view of connections** — a Logs page that tails the server's own output as it
   is written, and can record the full SMTP conversation, every `C:` and `S:` line,
   tagged per connection.
@@ -350,7 +354,7 @@ rest of the address fills in and stays selected, so carrying on typing replaces 
 with several, they are listed and the arrow keys pick one. A new address is never
 harder to enter than an existing one.
 
-Each message can be read three ways:
+Each message can be read four ways:
 
 - **HTML** — rendered in a sandboxed frame with scripts disabled and every network
   source blocked. Inline `cid:` images are embedded directly, so embedded graphics
@@ -359,6 +363,20 @@ Each message can be read three ways:
   message has no text part.
 - **Source** — the full original message, headers and all, with a **Download .eml**
   button for feeding it into another tool.
+- **Inspect** — a triage view of the message, in four sections. **Sender** compares the
+  From, Reply-To and Return-Path addresses and flags lookalike domains. **Route** lists
+  the hops from the `Received:` headers and Tinpost's own record, with the delay between
+  them. **Links** shows what each link says against where it really goes. **Attachments**
+  gives the SHA-256, SHA-1 and MD5 and compares the declared type with what the file
+  really is. The tab carries a badge with the number of high-severity findings.
+  **Copy IOCs** puts the domains, URLs, IP addresses and hashes on the clipboard, and
+  **Export .json** saves the whole breakdown.
+
+  Everything is worked out from the stored message, offline: no DNS, reputation or URL
+  lookups are made, and nothing is fetched. The checks are heuristics for training, not
+  a verdict, so a clean result does not mean a message is safe. Tinpost does not keep
+  the SMTP envelope sender, so that line reads "not recorded" unless the message carries
+  a `Return-Path:` header.
 
 Attachments are listed with their type and size and always download; they are never
 rendered or executed in the browser. That matters when the lab scenario deliberately
@@ -734,7 +752,7 @@ of scope for a vulnerability report, and how to send one privately.
 
 ```bash
 npm install
-npm test          # 58 tests, no network access required
+npm test          # 281 tests, no network access required
 npm start         # runs the server from source
 ```
 
