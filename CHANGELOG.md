@@ -4,6 +4,14 @@ Every release, in plain language. Newest first.
 
 ---
 
+## v0.8.0 — 26 November 2026
+
+- New: **Every message now has an Inspect tab.** It shows who really sent it, the route it
+  took, where its links really go and what its attachments really are. Nothing leaves your
+  machine to do it.
+- New: **Copy IOCs and Export .json on the Inspect tab.** Copy the domains, URLs, addresses
+  and file hashes in one go, or save the whole breakdown as a file.
+
 ## v0.7.9 — 24 September 2026
 
 - New: **Tinpost is on the npm registry**, so it can be run without being installed at

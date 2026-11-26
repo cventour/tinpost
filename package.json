@@ -1,6 +1,6 @@
 {
   "name": "tinpost",
-  "version": "0.7.9",
+  "version": "0.8.0",
   "description": "A self-contained mail server with a web interface for lab environments. Supports a message timeline, live SMTP logs viewing, ICAP scanning and gateway relay",
   "type": "module",
   "license": "MIT",
